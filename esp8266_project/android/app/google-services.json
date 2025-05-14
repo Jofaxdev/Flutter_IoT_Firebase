@@ -1,48 +1,63 @@
 {
-    "project_info": {
-        "project_number": "27099870753",
-        "firebase_url": "https://esp8266-flutter-app-default-rtdb.firebaseio.com",
-        "project_id": "esp8266-flutter-app",
-        "storage_bucket": "esp8266-flutter-app.appspot.com"
-    },
-    "client": [
-        {
-            "client_info": {
-                "mobilesdk_app_id": "1:27099870753:android:ab9cd70a8bba7d0c519560",
-                "android_client_info": {
-                    "package_name": "com.example.esp8266_project"
-                }
-            },
-            "oauth_client": [
-                {
-                    "client_id": "27099870753-ti1j97585q6hpu4tks5d3h7s6v5kkb5d.apps.googleusercontent.com",
-                    "client_type": 1,
-                    "android_info": {
-                        "package_name": "com.example.esp8266_project",
-                        "certificate_hash": "d8d3fa53e23c8e50d654fa887d2ebe178b32e097"
-                    }
-                },
-                {
-                    "client_id": "27099870753-8rvtv29tot7i5u49a4m4e23mhnvrpv0t.apps.googleusercontent.com",
-                    "client_type": 3
-                }
-            ],
-            "api_key": [
-                {
-                    "current_key": "AIzaSyBYLUONPdFLlc2cQap-2LEq5nh51POzqvo"
-                }
-            ],
-            "services": {
-                "appinvite_service": {
-                    "other_platform_oauth_client": [
-                        {
-                            "client_id": "27099870753-8rvtv29tot7i5u49a4m4e23mhnvrpv0t.apps.googleusercontent.com",
-                            "client_type": 3
-                        }
-                    ]
-                }
-            }
+  "project_info": {
+    "project_number": "27099870753",
+    "firebase_url": "https://esp8266-flutter-app-default-rtdb.firebaseio.com",
+    "project_id": "esp8266-flutter-app",
+    "storage_bucket": "esp8266-flutter-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:27099870753:android:ab9cd70a8bba7d0c519560",
+        "android_client_info": {
+          "package_name": "com.example.esp8266_project"
         }
-    ],
-    "configuration_version": "1"
+      },
+      "oauth_client": [
+        {
+          "client_id": "27099870753-nlhabsqv83lk1ihg4ss6dl9pgqeu85ir.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.esp8266_project",
+            "certificate_hash": "aa1a45b207a4564658cbe1be956ab0b736fdfc98"
+          }
+        },
+        {
+          "client_id": "27099870753-ti1j97585q6hpu4tks5d3h7s6v5kkb5d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.esp8266_project",
+            "certificate_hash": "d8d3fa53e23c8e50d654fa887d2ebe178b32e097"
+          }
+        },
+        {
+          "client_id": "27099870753-8rvtv29tot7i5u49a4m4e23mhnvrpv0t.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBYLUONPdFLlc2cQap-2LEq5nh51POzqvo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "27099870753-8rvtv29tot7i5u49a4m4e23mhnvrpv0t.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "27099870753-iafi4n21no4kfeum97lhh52a1ibgbd16.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.esp8266Project"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
 }

@@ -9,10 +9,18 @@ import 'firebase_options.dart'; // Cấu hình firebase tới API của mình
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions
-        .currentPlatform, // Sử dụng tùy chọn Firebase đã định nghĩa
-  ); // Khởi tạo Firebase
+  bool firebaseInitialized = false;
+
+  try {
+    Firebase.app(); // Thử lấy instance mặc định
+    firebaseInitialized = true;
+  } catch (e) {
+    // Nếu lỗi (chưa có instance), thì mới khởi tạo
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    firebaseInitialized = true; // Đánh dấu đã khởi tạo
+  }
 
   runApp(MyApp());
 }
