@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 
 class QrScanner extends StatefulWidget {
-  const QrScanner({Key? key}) : super(key: key);
+  const QrScanner({super.key});
 
   @override
   State<QrScanner> createState() => _QrScannerState();
@@ -56,7 +56,7 @@ class _QrScannerState extends State<QrScanner> {
               cutOutSize: _cutOutSize,
             ),
           ),
-          Positioned(
+          const Positioned(
             bottom: 80,
             child: Text(
               'Add new devices using QR code',
@@ -89,20 +89,20 @@ class _QrScannerState extends State<QrScanner> {
         Navigator.pop(context, deviceId);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Invalid QR code')),
+          const SnackBar(content: Text('Invalid QR code')),
         );
         controller.resumeCamera();
       }
 
       // Sử dụng AnimatedContainer để tạo hiệu ứng mượt mà (800ms)
       await Future.delayed(
-          Duration(milliseconds: 100)); // Chờ 100ms trước khi zoom
+          const Duration(milliseconds: 100)); // Chờ 100ms trước khi zoom
       setState(() {
         _cutOutSize = 250; // Thu nhỏ vùng quét
       });
 
       // Đặt lại kích thước vùng quét sau khi xử lý xong (800ms)
-      await Future.delayed(Duration(milliseconds: 800));
+      await Future.delayed(const Duration(milliseconds: 800));
       setState(() {
         _cutOutSize = 300;
       });
@@ -113,8 +113,10 @@ class _QrScannerState extends State<QrScanner> {
   Future<bool> _checkDeviceValidity(String deviceId) async {
     // Xuất ra debug console
     debugPrint('Scanned device ID: $deviceId');
-    // Kiểm tra xem deviceId có bắt đầu bằng "CongTac" hoặc "CuaCuon"
-    return deviceId.startsWith("CongTac") || deviceId.startsWith("CuaCuon");
+    // Kiểm tra xem deviceId có bắt đầu bằng "CongTac", "CuaCuon" hoặc "CamBienNhietDoAm"
+    return deviceId.startsWith("CongTac") ||
+        deviceId.startsWith("CuaCuon") ||
+        deviceId.startsWith("CamBienNhietDoAm"); // Thêm điều kiện mới
   }
 
   Future<void> _addDevice(String deviceId, BuildContext context) async {

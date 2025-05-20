@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:shimmer/shimmer.dart';
 
 import 'package:esp8266_project/login_pages.dart';
 import 'package:esp8266_project/widget/QrScanner.dart';
@@ -14,24 +15,26 @@ class HomePage extends StatelessWidget {
   final DatabaseReference _databaseReference = FirebaseDatabase.instance.ref();
   final GoogleSignIn googleSignIn = GoogleSignIn();
 
+  HomePage({Key? key}) : super(key: key);
+
   Future<void> _deleteDevice(String deviceId, BuildContext context) async {
     final User? user = _auth.currentUser;
     if (user != null) {
       try {
-        // Xóa thiết bị khỏi danh sách thiết bị của người dùng
         await _databaseReference
             .child('users/${user.uid}/devices/$deviceId')
             .remove();
-
-        // Hiển thị thông báo xóa thành công
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Đã xóa thiết bị $deviceId')),
-        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Đã xóa thiết bị $deviceId')),
+          );
+        }
       } catch (e) {
-        // Hiển thị thông báo lỗi nếu có
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi khi xóa thiết bị: $e')),
-        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi khi xóa thiết bị: $e')),
+          );
+        }
       }
     }
   }
@@ -40,51 +43,64 @@ class HomePage extends StatelessWidget {
       BuildContext context, String deviceId, String customName) async {
     return showDialog<void>(
       context: context,
-      barrierDismissible: true, // Ngăn chặn việc đóng dialog khi chạm ra ngoài
-      builder: (BuildContext context) {
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15), // Bo tròn góc dialog
+            borderRadius: BorderRadius.circular(15),
           ),
           title: Row(
             children: [
               Icon(
-                Icons.warning_amber_rounded, // Icon cảnh báo
-                color: Colors.red, // Màu đỏ cho icon
-                size: 30, // Kích thước icon
+                Icons.warning_amber_rounded,
+                color: Colors.redAccent,
+                size: 28,
               ),
-              SizedBox(width: 10), // Khoảng cách giữa icon và text
+              SizedBox(width: 12),
               Text(
-                'Confirm deletion',
-                style: TextStyle(fontWeight: FontWeight.bold), // In đậm tiêu đề
+                'Xác nhận xóa',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
             ],
           ),
           content: SingleChildScrollView(
             child: ListBody(
               children: <Widget>[
-                Text('Are you sure you want to delete device "$customName"?'),
+                Text(
+                    'Bạn có chắc chắn muốn xóa vĩnh viễn thiết bị "$customName" khỏi danh sách của bạn không?',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 15, color: Colors.grey[700])),
               ],
             ),
           ),
+          actionsPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           actions: <Widget>[
             TextButton(
+              style: TextButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10))),
               child: Text(
-                'Cancel',
-                style: TextStyle(color: Colors.grey), // Màu xám cho nút Cancel
+                'HỦY BỎ',
+                style: TextStyle(
+                    color: Colors.grey.shade600, fontWeight: FontWeight.w500),
               ),
               onPressed: () {
-                Navigator.of(context).pop(); // Đóng dialog
+                Navigator.of(dialogContext).pop();
               },
             ),
-            TextButton(
-              child: Text(
-                'Yes',
-                style: TextStyle(color: Colors.red), // Màu đỏ cho nút Yes
-              ),
+            ElevatedButton.icon(
+              icon: Icon(Icons.delete_forever_rounded, size: 20),
+              label: Text('XÓA', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10))),
               onPressed: () async {
-                await _deleteDevice(deviceId, context); // Gọi hàm xóa thiết bị
-                Navigator.of(context).pop(); // Đóng dialog
+                await _deleteDevice(deviceId, context);
+                Navigator.of(dialogContext).pop();
               },
             ),
           ],
@@ -95,440 +111,256 @@ class HomePage extends StatelessWidget {
 
   Future<void> _addDevice(String deviceId, BuildContext context) async {
     final User? user = _auth.currentUser;
-    if (user != null) {
-      // Check if the device exists in the main devices node
-      final DatabaseReference deviceExistsRef =
-          _databaseReference.child('devices/$deviceId');
-      final DatabaseEvent deviceExistsSnapshot = await deviceExistsRef.once();
+    if (user == null) return;
 
-      if (deviceExistsSnapshot.snapshot.value != null) {
-        // If device exists, check if it's already in the user's devices list
-        final DatabaseReference userDevicesRef =
-            _databaseReference.child('users/${user.uid}/devices/$deviceId');
-        final DataSnapshot userDeviceSnapshot = await userDevicesRef.get();
+    final DatabaseReference globalDeviceRef =
+        _databaseReference.child('devices/$deviceId');
+    final DatabaseEvent globalDeviceSnapshotEvent =
+        await globalDeviceRef.once();
 
-        if (userDeviceSnapshot.exists) {
-          // If device already exists in the user's list, show a message
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Device $deviceId already exists!')));
+    if (globalDeviceSnapshotEvent.snapshot.value == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content:
+                Text('Device ID "$deviceId" không tồn tại trong hệ thống.')));
+      }
+      return;
+    }
+
+    final DatabaseReference userDeviceRef =
+        _databaseReference.child('users/${user.uid}/devices/$deviceId');
+    final DataSnapshot userDeviceSnapshot = await userDeviceRef.get();
+
+    if (userDeviceSnapshot.exists) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content:
+                Text('Thiết bị $deviceId đã có trong danh sách của bạn.')));
+      }
+    } else {
+      Map<String, dynamic> initialUserDataForDevice = {
+        "status": "on",
+        "customName": deviceId,
+        "color": Theme.of(context).primaryColor.withAlpha(150).value
+      };
+      Map<String, dynamic> initialGlobalDataForDeviceUpdate = {};
+
+      if (deviceId.startsWith('CamBienNhietDoAm')) {
+        Map<String, dynamic> autoWateringStructure = {
+          "enabled": false,
+          "soilMoistureThreshold": 50,
+          "pumpDurationWhenDry": 30,
+          "scheduledWatering": {"enabled": false, "schedules": {}}
+        };
+
+        Map<dynamic, dynamic> currentGlobalDeviceData =
+            globalDeviceSnapshotEvent.snapshot.value as Map<dynamic, dynamic>;
+
+        if (currentGlobalDeviceData['autoWatering'] == null) {
+          initialGlobalDataForDeviceUpdate['autoWatering'] =
+              autoWateringStructure;
         } else {
-          // If device doesn't exist in the user's list, add it
-          await userDevicesRef.set({"status": "on"});
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Device $deviceId added successfully!')));
+          Map<dynamic, dynamic> currentAutoWateringData =
+              currentGlobalDeviceData['autoWatering'] as Map<dynamic, dynamic>;
+          if (currentAutoWateringData['pumpDurationWhenDry'] == null) {
+            initialGlobalDataForDeviceUpdate[
+                'autoWatering/pumpDurationWhenDry'] = 30;
+          }
+          if (currentAutoWateringData['enabled'] == null) {
+            initialGlobalDataForDeviceUpdate['autoWatering/enabled'] = false;
+          }
+          if (currentAutoWateringData['soilMoistureThreshold'] == null) {
+            initialGlobalDataForDeviceUpdate[
+                'autoWatering/soilMoistureThreshold'] = 50;
+          }
+          if (currentAutoWateringData['scheduledWatering'] == null) {
+            initialGlobalDataForDeviceUpdate['autoWatering/scheduledWatering'] =
+                {"enabled": false, "schedules": {}};
+          }
         }
-      } else {
-        // Show error message if device does not exist
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Device $deviceId does not exist.')));
+      }
+
+      await userDeviceRef.set(initialUserDataForDevice);
+
+      if (initialGlobalDataForDeviceUpdate.isNotEmpty) {
+        await globalDeviceRef.update(initialGlobalDataForDeviceUpdate);
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Thiết bị $deviceId đã được thêm thành công!')));
       }
     }
   }
 
-  Future<void> _signOut() async {
+  Future<void> _signOut(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
     await googleSignIn.signOut();
-    await _auth.signOut();
+    if (context.mounted) {
+      Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => LoginPage()));
+    }
+  }
+
+  void _showAddDeviceDialog(BuildContext context) {
+    deviceController.clear();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+        context: context,
+        builder: (BuildContext dialogContext) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20.0)),
+            titlePadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0.0),
+            contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 10.0),
+            actionsPadding: const EdgeInsets.fromLTRB(24.0, 0.0, 24.0, 16.0),
+            title: Row(
+              children: [
+                Icon(Icons.playlist_add_rounded,
+                    color: Theme.of(context).primaryColor, size: 30),
+                SizedBox(width: 12),
+                Text('Thêm thiết bị',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                        color: Theme.of(context).textTheme.titleLarge?.color)),
+              ],
+            ),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Nhập mã định danh (ID) của thiết bị bạn muốn kết nối.",
+                      style: TextStyle(fontSize: 15, color: Colors.grey[600])),
+                  SizedBox(height: 24),
+                  TextFormField(
+                    controller: deviceController,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: 'ID Thiết bị',
+                      hintText: 'VD: CongTac_123',
+                      prefixIcon: Icon(Icons.electrical_services_rounded,
+                          color:
+                              Theme.of(context).primaryColor.withOpacity(0.7)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade400)),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade400)),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: Theme.of(context).primaryColor,
+                              width: 2.0)),
+                      filled: true,
+                      fillColor: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.grey[800]
+                          : Colors.grey.shade50,
+                      contentPadding: EdgeInsets.symmetric(
+                          vertical: 16.0, horizontal: 16.0),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Vui lòng nhập ID thiết bị.';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actionsAlignment: MainAxisAlignment.end,
+            actions: <Widget>[
+              TextButton(
+                child: Text('HỦY',
+                    style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5)),
+                style: TextButton.styleFrom(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10))),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                },
+              ),
+              SizedBox(width: 8),
+              ElevatedButton.icon(
+                icon: Icon(Icons.add_link_rounded, size: 22),
+                label: Text('KẾT NỐI',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10.0)),
+                  elevation: 3,
+                ),
+                onPressed: () {
+                  if (formKey.currentState!.validate()) {
+                    final deviceId = deviceController.text.trim();
+                    _addDevice(deviceId, context);
+                    Navigator.of(dialogContext).pop();
+                  }
+                },
+              ),
+            ],
+          );
+        });
+  }
+
+  void _scanQrCode(BuildContext context) async {
+    final qrResult = await Navigator.push(
+        context, MaterialPageRoute(builder: (context) => QrScanner()));
+    if (qrResult != null && qrResult is String) {
+      _addDevice(qrResult, context);
+    }
+  }
+
+  Widget _buildRelayControlTile(
+      BuildContext context,
+      String deviceId,
+      User? user,
+      DatabaseReference dbRef,
+      String relayName,
+      String relayKey,
+      bool isActive,
+      IconData iconData) {
+    return Container();
   }
 
   void _showControlSheet(
       BuildContext context, String deviceId, String customName) {
+    final User? currentUser = _auth.currentUser;
     showModalBottomSheet(
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
       ),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       context: context,
-      builder: (context) {
-        final User? user = _auth.currentUser;
-        return SizedBox(
-          height: 470,
-          child: StreamBuilder<DatabaseEvent>(
-            stream: _databaseReference.child('devices/$deviceId').onValue,
-            builder: (context, snapshot) {
-              Widget child;
-
-              // if (snapshot.connectionState == ConnectionState.waiting) {
-              //   child = const Center(child: CircularProgressIndicator());
-              // } else
-              if (snapshot.hasError) {
-                child = Center(child: Text('Error: ${snapshot.error}'));
-              } else if (!snapshot.hasData ||
-                  snapshot.data!.snapshot.value == null) {
-                // child = const Center(child: Text('Không tìm thấy thiết bị'));
-                child = const Center(child: CircularProgressIndicator());
-              } else {
-                final deviceData =
-                    snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-
-                child = Container(
-                  decoration: const BoxDecoration(
-                    // gradient: LinearGradient(
-                    //   colors: [Color(0xFF515151), Color(0xFF7F7F7F)],
-                    //   begin: Alignment.topLeft,
-                    //   end: Alignment.bottomRight,
-                    // ),
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(25.0)),
-                  ),
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Text(
-                          "Control - $customName",
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Color.fromARGB(255, 0, 0, 0),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      if (deviceId.startsWith('CongTac'))
-                        Container(
-                          // decoration: const BoxDecoration(
-                          //   gradient: LinearGradient(
-                          //     colors: [Color(0xFF515151), Color(0xFF7F7F7F)],
-                          //     begin: Alignment.topLeft,
-                          //     end: Alignment.bottomRight,
-                          //   ),
-                          //   borderRadius: BorderRadius.vertical(
-                          //       top: Radius.circular(25.0)),
-                          // ),
-                          padding: const EdgeInsets.all(5.0),
-                          child: GridView.count(
-                            shrinkWrap: true,
-                            crossAxisCount: 2, // 2 items per row
-                            mainAxisSpacing: 16,
-                            crossAxisSpacing: 16,
-                            children: [
-                              // Lặp qua các công tắc để tạo từng ô điều khiển
-                              ...List.generate(4, (index) {
-                                final switchId = 'D${index + 1}';
-                                final switchStatus =
-                                    deviceData[switchId] == 'on';
-
-                                return Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Color(0xFF7E60BF),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceAround,
-                                    children: [
-                                      Icon(Icons.lightbulb_outline,
-                                          color: Colors.white), // Biểu tượng
-                                      Text(
-                                        'Switch $switchId',
-                                        style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white),
-                                      ),
-                                      Switch(
-                                        activeColor: const Color.fromARGB(
-                                            255, 21, 255, 0),
-                                        inactiveThumbColor:
-                                            const Color.fromARGB(
-                                                255, 21, 255, 0),
-                                        value: switchStatus,
-                                        onChanged: (value) {
-                                          _databaseReference
-                                              .child('devices/$deviceId')
-                                              .update({
-                                            switchId: value ? 'on' : 'off'
-                                          });
-                                          _databaseReference
-                                              .child(
-                                                  'users/${user?.uid}/devices/$deviceId')
-                                              .update({
-                                            switchId: value ? 'on' : 'off'
-                                          });
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                            ],
-                          ),
-                        ),
-                      if (deviceId.startsWith('CuaCuon'))
-                        Column(
-                          children: [
-                            // Nút Up và Down
-                            ...['Up', 'Down'].map((action) {
-                              final actionStatus = deviceData[
-                                      action.toString() == "Down"
-                                          ? "down"
-                                          : "up"] ==
-                                  'on';
-                              Timer? holdTimer;
-
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8.0),
-                                child: Column(
-                                  children: [
-                                    // Text(
-                                    //   'Cửa Cuốn $action',
-                                    //   style: const TextStyle(
-                                    //       fontSize: 18,
-                                    //       color: Color.fromARGB(255, 0, 0, 0)),
-                                    // ),
-                                    const SizedBox(
-                                        height:
-                                            8), // Space between text and button
-                                    GestureDetector(
-                                      onTapDown: (_) {
-                                        // Start a timer to detect a 1-second hold
-                                        holdTimer = Timer(
-                                            const Duration(milliseconds: 20),
-                                            () {
-                                          _databaseReference
-                                              .child('devices/$deviceId')
-                                              .update({
-                                            (action.toString() == "Down"
-                                                ? "down"
-                                                : "up"): 'on',
-                                            "stop": "off"
-                                          });
-                                          _databaseReference
-                                              .child(
-                                                  'users/${user?.uid}/devices/$deviceId')
-                                              .update({
-                                            (action.toString() == "Down"
-                                                ? "down"
-                                                : "up"): 'on',
-                                            "stop": "off"
-                                          });
-                                        });
-                                      },
-                                      onTapUp: (_) {
-                                        // If the hold was less than 1 second, cancel the action
-                                        holdTimer?.cancel();
-                                        _databaseReference
-                                            .child('devices/$deviceId')
-                                            .update({
-                                          (action.toString() == "Down"
-                                              ? "down"
-                                              : "up"): 'off',
-                                          "stop": "off"
-                                        });
-                                        _databaseReference
-                                            .child(
-                                                'users/${user?.uid}/devices/$deviceId')
-                                            .update({
-                                          (action.toString() == "Down"
-                                              ? "down"
-                                              : "up"): 'off',
-                                          "stop": "off"
-                                        });
-                                      },
-                                      onTapCancel: () {
-                                        // Clean up on tap cancel
-                                        holdTimer?.cancel();
-                                        _databaseReference
-                                            .child('devices/$deviceId')
-                                            .update({
-                                          (action.toString() == "Down"
-                                              ? "down"
-                                              : "up"): 'off',
-                                        });
-                                        _databaseReference
-                                            .child(
-                                                'users/${user?.uid}/devices/$deviceId')
-                                            .update({
-                                          (action.toString() == "Down"
-                                              ? "down"
-                                              : "up"): 'off',
-                                        });
-                                      },
-                                      child: Container(
-                                        width: 180, // Set desired width
-                                        height: 90, // Set desired height
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 10),
-                                        decoration: BoxDecoration(
-                                          color: actionStatus
-                                              ? Colors.blue
-                                              : Colors.grey,
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                        child: Center(
-                                          // Center text in the button
-                                          child: Text(
-                                            action,
-                                            style: const TextStyle(
-                                              color: Color.fromARGB(
-                                                  255, 255, 255, 255),
-                                              fontSize: 18,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-
-                            // Nút Dừng
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 8.0),
-                              child: Column(
-                                children: [
-                                  // Text(
-                                  //   'Dừng',
-                                  //   style: const TextStyle(
-                                  //       fontSize: 18,
-                                  //       color: Color.fromARGB(255, 0, 0, 0)),
-                                  // ),
-                                  const SizedBox(
-                                      height:
-                                          8), // Space between text and button
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment
-                                        .center, // Center the button horizontally
-                                    children: [
-                                      ElevatedButton(
-                                        onPressed: () {
-                                          // Khi nhấn nút, sẽ bật cửa cuốn
-                                          _databaseReference
-                                              .child('devices/$deviceId')
-                                              .update({
-                                            'up': 'off',
-                                            'down': 'off',
-                                            "stop": "on"
-                                          });
-                                          _databaseReference
-                                              .child(
-                                                  'users/${user?.uid}/devices/$deviceId')
-                                              .update({
-                                            'up': 'off',
-                                            'down': 'off',
-                                            "stop": "on"
-                                          });
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              (deviceData['stop'] == 'on')
-                                                  ? Colors.red
-                                                  : Colors.green,
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical:
-                                                  10), // Adjusted vertical padding
-                                          minimumSize: Size(190,
-                                              120), // Set minimum width and height
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                        child: const Text(
-                                          'Stop',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 18,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        )
-                    ],
-                  ),
-                );
-              }
-
-              return AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: child,
-              );
-            },
+      isScrollControlled: true,
+      builder: (BuildContext modalContext) {
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(modalContext).size.height * 0.9,
+          ),
+          child: _DeviceControlSheetContent(
+            deviceId: deviceId,
+            customName: customName,
+            databaseReference: _databaseReference,
+            currentUser: currentUser,
+            buildRelayControlTileCallback: _buildRelayControlTile,
           ),
         );
       },
-    );
-  }
-
-  Widget _buildControlButton({
-    required String label,
-    required Color color,
-    required VoidCallback onPressed,
-  }) {
-    return StatefulBuilder(
-      builder: (context, setState) {
-        bool isPressed = false;
-
-        return GestureDetector(
-          onTapDown: (_) => setState(() => isPressed = true),
-          onTapUp: (_) {
-            setState(() => isPressed = false);
-            onPressed();
-          },
-          onTapCancel: () => setState(() => isPressed = false),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 100),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              color: isPressed ? color.withOpacity(0.7) : color,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildIconButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
-            padding: const EdgeInsets.all(12.0),
-            child: Icon(
-              icon,
-              size: 30,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        SizedBox(height: 8),
-        Text(
-          label,
-          style: TextStyle(color: Colors.white),
-        ),
-      ],
     );
   }
 
@@ -537,13 +369,13 @@ class HomePage extends StatelessWidget {
     final TextEditingController nameController =
         TextEditingController(text: name);
     final User? user = _auth.currentUser;
-    Color selectedColor = color; // Màu hiện tại của thiết bị
+    Color selectedColor = color;
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (BuildContext dialogContext) {
         return StatefulBuilder(
-          builder: (context, setState) {
+          builder: (BuildContext context, StateSetter setStateDialog) {
             return AlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(15),
@@ -551,14 +383,14 @@ class HomePage extends StatelessWidget {
               title: Row(
                 children: [
                   Icon(
-                    Icons.edit,
-                    color: selectedColor,
-                    size: 30,
+                    Icons.edit_note_outlined,
+                    color: Theme.of(context).primaryColor,
+                    size: 28,
                   ),
                   SizedBox(width: 10),
                   Text(
-                    'Edit device',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    'Chỉnh sửa Thiết bị',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                 ],
               ),
@@ -568,39 +400,47 @@ class HomePage extends StatelessWidget {
                   TextField(
                     controller: nameController,
                     decoration: InputDecoration(
-                      hintText: 'Enter custom name',
+                      hintText: 'Nhập tên tùy chỉnh',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                   SizedBox(height: 20),
+                  Text("Chọn Màu:",
+                      style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                  SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildColorOption(Colors.blue, selectedColor, () {
-                        setState(() {
+                      _buildColorOption(context, Colors.blue, selectedColor,
+                          () {
+                        setStateDialog(() {
                           selectedColor = Colors.blue;
                         });
                       }),
-                      _buildColorOption(Colors.red, selectedColor, () {
-                        setState(() {
+                      _buildColorOption(context, Colors.red, selectedColor, () {
+                        setStateDialog(() {
                           selectedColor = Colors.red;
                         });
                       }),
-                      _buildColorOption(Colors.green, selectedColor, () {
-                        setState(() {
+                      _buildColorOption(context, Colors.green, selectedColor,
+                          () {
+                        setStateDialog(() {
                           selectedColor = Colors.green;
                         });
                       }),
-                      _buildColorOption(Colors.orange, selectedColor, () {
-                        setState(() {
+                      _buildColorOption(context, Colors.orange, selectedColor,
+                          () {
+                        setStateDialog(() {
                           selectedColor = Colors.orange;
                         });
                       }),
-                      _buildColorOption(Color(0xFF7E60BF), selectedColor, () {
-                        setState(() {
+                      _buildColorOption(
+                          context, Color(0xFF7E60BF), selectedColor, () {
+                        setStateDialog(() {
                           selectedColor = Color(0xFF7E60BF);
                         });
                       }),
-                      // Thêm các màu khác nếu cần
                     ],
                   ),
                 ],
@@ -608,12 +448,9 @@ class HomePage extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () {
-                    Navigator.of(context).pop();
+                    Navigator.of(dialogContext).pop();
                   },
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                  child: Text('Hủy', style: TextStyle(color: Colors.grey[600])),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -625,20 +462,19 @@ class HomePage extends StatelessWidget {
                         'customName': newName,
                         'color': selectedColor.value
                       });
-                      Navigator.of(context).pop();
+                      Navigator.of(dialogContext).pop();
                     } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Invalid name')),
-                      );
+                      if (dialogContext.mounted) {
+                        ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            SnackBar(content: Text('Tên không hợp lệ')));
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: selectedColor,
-                  ),
-                  child: Text(
-                    'Save',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                      backgroundColor: selectedColor,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8))),
+                  child: Text('Lưu', style: TextStyle(color: Colors.white)),
                 ),
               ],
             );
@@ -648,9 +484,8 @@ class HomePage extends StatelessWidget {
     );
   }
 
-// Hàm để tạo widget lựa chọn màu sắc
-  Widget _buildColorOption(
-      Color color, Color selectedColor, VoidCallback onTap) {
+  Widget _buildColorOption(BuildContext context, Color color,
+      Color selectedColor, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -660,9 +495,19 @@ class HomePage extends StatelessWidget {
           color: color,
           shape: BoxShape.circle,
           border: Border.all(
-            color: color == selectedColor ? Colors.black : Colors.transparent,
-            width: 2,
+            color: color == selectedColor
+                ? Theme.of(context).primaryColorDark
+                : Colors.transparent,
+            width: 2.5,
           ),
+          boxShadow: color == selectedColor
+              ? [
+                  BoxShadow(
+                      color: color.withOpacity(0.5),
+                      blurRadius: 5,
+                      spreadRadius: 1)
+                ]
+              : [],
         ),
       ),
     );
@@ -670,262 +515,2114 @@ class HomePage extends StatelessWidget {
 
   Stream<DatabaseEvent> _getDevices() {
     final User? user = _auth.currentUser;
-    return _databaseReference.child('users/${user?.uid}/devices').onValue;
+    if (user == null) {
+      return Stream.empty();
+    }
+    return _databaseReference.child('users/${user.uid}/devices').onValue;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Tim',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
+        title: Text('Tim',
+            style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onPrimary)),
+        backgroundColor: Theme.of(context).primaryColor,
+        elevation: 1.0,
+        iconTheme:
+            IconThemeData(color: Theme.of(context).colorScheme.onPrimary),
         actions: [
-          IconButton(
-            icon: Icon(Icons.logout),
-            onPressed: () async {
-              await _signOut();
-              Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => LoginPage()));
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert_rounded),
+            onSelected: (value) {
+              if (value == 'add_id') {
+                _showAddDeviceDialog(context);
+              } else if (value == 'scan_qr') {
+                _scanQrCode(context);
+              } else if (value == 'logout') {
+                _signOut(context);
+              }
             },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'add_id',
+                child: ListTile(
+                  leading: Icon(Icons.input_rounded),
+                  title: Text('Thêm bằng ID'),
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'scan_qr',
+                child: ListTile(
+                  leading: Icon(Icons.qr_code_scanner_rounded),
+                  title: Text('Quét mã QR'),
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: ListTile(
+                  leading:
+                      Icon(Icons.exit_to_app_rounded, color: Colors.redAccent),
+                  title: Text('Đăng xuất',
+                      style: TextStyle(color: Colors.redAccent)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(height: 10),
-            const Center(
-              child: Text(
-                'Smart Home',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF7E60BF),
-                ),
+      body: Container(
+        color: Theme.of(context).colorScheme.background,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12.0),
+                child: Center(
+                    child: Text('Bảng Điều Khiển Nhà Thông Minh',
+                        style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary))),
               ),
-            ),
-            SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    // cursorColor: Colors.red,
-                    // cursorRadius: Radius.circular(16.0),
-                    // cursorWidth: 16.0,
-                    controller: deviceController,
-                    decoration: InputDecoration(
-                      labelText: 'Enter ID devices',
-                      hintStyle: const TextStyle(
-                        color: Colors.grey,
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[200],
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Colors.blue,
-                          width: 2.0,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Colors.grey,
-                          width: 1.0,
-                        ),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Colors.red,
-                          width: 1.0,
-                        ),
-                      ),
-                      focusedErrorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Colors.red,
-                          width: 2.0,
-                        ),
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: () {
-                    final deviceId = deviceController.text.trim();
-                    if (deviceId.isNotEmpty) {
-                      _addDevice(deviceId, context);
-                      deviceController.clear();
+              Text('Thiết bị của bạn',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).textTheme.titleMedium?.color)),
+              SizedBox(height: 12),
+              Expanded(
+                child: StreamBuilder<DatabaseEvent>(
+                  stream: _getDevices(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Lỗi: ${snapshot.error}'));
                     }
-                  },
-                  child: Text(
-                    'Add devices',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFFEF9F2),
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color.fromARGB(255, 0, 154, 243),
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    // Mở QrScanner và nhận kết quả
-                    final qrResult = await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => QrScanner()),
-                    );
-
-                    if (qrResult != null) {
-                      // Xử lý kết quả quét mã QR (ví dụ: thêm thiết bị)
-                      String deviceId = qrResult as String;
-                      _addDevice(deviceId, context);
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(child: CircularProgressIndicator());
                     }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[200], // Màu nền cho nút
-                    padding: EdgeInsets.all(10.0), // Khoảng cách lề cho nút
-                    shape: CircleBorder(), // Hình dạng tròn cho nút
-                  ),
-                  child: Icon(
-                    Icons.qr_code,
-                    size: 32.0, // Kích thước biểu tượng
-                  ),
-                )
-              ],
-            ),
-            SizedBox(height: 20),
-            Text(
-              'Devices',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
-            Expanded(
-              child: StreamBuilder<DatabaseEvent>(
-                stream: _getDevices(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
-                  }
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(child: CircularProgressIndicator());
-                  }
+                    final devicesMap =
+                        snapshot.data?.snapshot.value as Map<dynamic, dynamic>?;
+                    if (devicesMap == null || devicesMap.isEmpty) {
+                      return Center(
+                          child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.devices_other_rounded,
+                              size: 80, color: Colors.grey[400]),
+                          SizedBox(height: 20),
+                          Text('Không có thiết bị nào được kết nối.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  fontSize: 17, color: Colors.grey[600])),
+                          SizedBox(height: 10),
+                          Text('Thêm thiết bị mới bằng menu ở góc trên.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  fontSize: 14, color: Colors.grey[500])),
+                        ],
+                      ));
+                    }
+                    final deviceKeys = devicesMap.keys.toList();
 
-                  final devicesMap =
-                      snapshot.data?.snapshot.value as Map<dynamic, dynamic>?;
-                  if (devicesMap == null) {
-                    return Center(child: Text('No devices'));
-                  }
+                    return GridView.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio:
+                              1.05, // Adjusted to give slightly more height
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16),
+                      itemCount: deviceKeys.length,
+                      itemBuilder: (context, index) {
+                        final deviceId = deviceKeys[index] as String;
+                        final deviceData =
+                            devicesMap[deviceId] as Map<dynamic, dynamic>;
+                        final deviceStatus = deviceData['status'] as String?;
+                        final customName =
+                            deviceData['customName'] as String? ?? deviceId;
 
-                  final deviceKeys = devicesMap.keys.toList();
+                        dynamic rawColor = deviceData['color'];
+                        int intColorValue;
+                        if (rawColor is int) {
+                          intColorValue = rawColor;
+                        } else if (rawColor is String &&
+                            int.tryParse(rawColor) != null) {
+                          intColorValue = int.tryParse(rawColor)!;
+                        } else if (rawColor is double) {
+                          intColorValue = rawColor.toInt();
+                        } else {
+                          intColorValue = Theme.of(context)
+                              .primaryColor
+                              .withAlpha(150)
+                              .value;
+                        }
+                        Color color = Color(intColorValue);
 
-                  return GridView.builder(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 1.0,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
-                    itemCount: deviceKeys.length,
-                    itemBuilder: (context, index) {
-                      final deviceId = deviceKeys[index];
-                      final deviceData = devicesMap[deviceId];
-                      final deviceStatus = deviceData['status'];
-                      final customName = deviceData['customName'] ?? deviceId;
-                      Color color = Color(deviceData['color'] ?? 0xFF7E60BF);
-                      return GestureDetector(
-                        onTap: () =>
-                            _showControlSheet(context, deviceId, customName),
-                        onLongPress: () => _showEditDialog(
-                            context, deviceId, customName, color),
-                        child: Stack(
-                          children: [
-                            Container(
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color:
-                                    deviceStatus == 'on' ? color : Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.withOpacity(0.3),
-                                    blurRadius: 6,
-                                    offset: Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    (deviceId.startsWith('CongTac')
-                                        ? Icons.room_preferences_outlined
-                                        : Icons.door_sliding),
-                                    size: 60,
-                                    color: deviceStatus == 'on'
-                                        ? Colors.white
-                                        : Color(0xFFC4D7FF),
-                                  ),
-                                  SizedBox(height: 10),
-                                  Text(
-                                    customName,
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: deviceStatus == 'on'
-                                          ? Colors.white
-                                          : Colors.black,
-                                    ),
-                                  ),
-                                  // Xóa Positioned khỏi đây
-                                ],
-                              ),
-                            ),
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: CircleAvatar(
-                                radius: 16,
-                                backgroundColor: Colors.white,
-                                child: IconButton(
-                                  icon:
-                                      Icon(Icons.close, color: Colors.red[300]),
-                                  padding: EdgeInsets.zero, // Loại bỏ padding
-                                  alignment: Alignment.center,
-                                  onPressed: () =>
-                                      _showDeleteConfirmationDialog(
-                                    context,
-                                    deviceId,
-                                    customName,
+                        IconData deviceIcon;
+                        if (deviceId.startsWith('CongTac')) {
+                          deviceIcon = Icons.lightbulb_outline_rounded;
+                        } else if (deviceId.startsWith('CuaCuon')) {
+                          deviceIcon = Icons.door_sliding_rounded;
+                        } else if (deviceId.startsWith('CamBienNhietDoAm')) {
+                          deviceIcon = Icons.thermostat_auto_rounded;
+                        } else {
+                          deviceIcon = Icons.developer_board_rounded;
+                        }
+
+                        bool isActive = deviceStatus == 'on';
+
+                        return GestureDetector(
+                          onTap: () =>
+                              _showControlSheet(context, deviceId, customName),
+                          onLongPress: () => _showEditDialog(
+                              context, deviceId, customName, color),
+                          child: Card(
+                            elevation: isActive ? 5.0 : 2.0,
+                            shadowColor: isActive
+                                ? color.withOpacity(0.4)
+                                : Colors.grey.withOpacity(0.25),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18.0)),
+                            color:
+                                isActive ? color : Theme.of(context).cardColor,
+                            child: Stack(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding:
+                                            EdgeInsets.all(isActive ? 9 : 7),
+                                        decoration: BoxDecoration(
+                                          color: isActive
+                                              ? Colors.white.withOpacity(0.2)
+                                              : color.withOpacity(0.1),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(deviceIcon,
+                                            size: isActive ? 40 : 36,
+                                            color: isActive
+                                                ? Colors.white
+                                                : color),
+                                      ),
+                                      SizedBox(height: 6),
+                                      Text(customName,
+                                          textAlign: TextAlign.center,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              height: 1.15,
+                                              color: isActive
+                                                  ? Colors.white
+                                                  : Theme.of(context)
+                                                      .textTheme
+                                                      .titleMedium
+                                                      ?.color)),
+                                      SizedBox(height: 1),
+                                      Text(
+                                        isActive ? "Hoạt động" : "Ngoại tuyến",
+                                        style: TextStyle(
+                                          fontSize: 9.5,
+                                          color: isActive
+                                              ? Colors.white.withOpacity(0.75)
+                                              : Colors.grey.shade500,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ),
-                            )
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
+                                Positioned(
+                                  top: 4,
+                                  right: 4,
+                                  child: InkWell(
+                                    onTap: () => _showDeleteConfirmationDialog(
+                                        context, deviceId, customName),
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Container(
+                                      padding: EdgeInsets.all(2.0),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withOpacity(0.2),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(Icons.close_rounded,
+                                          color: isActive
+                                              ? Colors.white.withOpacity(0.7)
+                                              : Colors.grey[600],
+                                          size: 14),
+                                    ),
+                                  ),
+                                )
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
+
+// End of Part 1
+class _DeviceControlSheetContent extends StatefulWidget {
+  final String deviceId;
+  final String customName;
+  final DatabaseReference databaseReference;
+  final User? currentUser;
+  final Widget Function(BuildContext, String, User?, DatabaseReference, String,
+      String, bool, IconData) buildRelayControlTileCallback;
+
+  const _DeviceControlSheetContent({
+    Key? key,
+    required this.deviceId,
+    required this.customName,
+    required this.databaseReference,
+    required this.currentUser,
+    required this.buildRelayControlTileCallback,
+  }) : super(key: key);
+
+  @override
+  __DeviceControlSheetContentState createState() =>
+      __DeviceControlSheetContentState();
+}
+
+class __DeviceControlSheetContentState
+    extends State<_DeviceControlSheetContent> {
+  Map<dynamic, dynamic>? _deviceData;
+  bool _isLoading = true;
+  String? _error;
+  StreamSubscription<DatabaseEvent>? _dataSubscription;
+  TextEditingController? _soilMoistureThresholdController;
+  TextEditingController? _autoPumpDurationController;
+  double _sliderValue = 50.0;
+  int _autoPumpDurationSeconds = 30;
+
+  final List<Map<String, dynamic>> _sensorRelaysInfo = [
+    {
+      'key': 'relay1',
+      'name': 'Đèn chiếu sáng',
+      'icon': Icons.lightbulb_outline_rounded
+    },
+    {'key': 'relay2', 'name': 'Quạt thông gió', 'icon': FontAwesomeIcons.fan},
+    {
+      'key': 'relay3',
+      'name': 'Máy phun sương',
+      'icon': Icons.water_drop_outlined
+    },
+    {
+      'key': 'water_pump',
+      'name': 'Bơm tưới nước',
+      'icon': Icons.water_outlined
+    },
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _soilMoistureThresholdController =
+        TextEditingController(text: _sliderValue.round().toString());
+    _autoPumpDurationController =
+        TextEditingController(text: _autoPumpDurationSeconds.toString());
+    _listenToDeviceData();
+  }
+
+  void _listenToDeviceData() {
+    if (widget.deviceId.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = "Device ID is empty.";
+        });
+      }
+      return;
+    }
+    _dataSubscription = widget.databaseReference
+        .child('devices/${widget.deviceId}')
+        .onValue
+        .listen((DatabaseEvent event) {
+      if (mounted) {
+        setState(() {
+          if (event.snapshot.value != null && event.snapshot.value is Map) {
+            _deviceData =
+                Map<dynamic, dynamic>.from(event.snapshot.value as Map);
+            if (widget.deviceId.startsWith('CamBienNhietDoAm')) {
+              final autoWateringData =
+                  _deviceData?['autoWatering'] as Map<dynamic, dynamic>? ?? {};
+
+              dynamic rawThreshold = autoWateringData['soilMoistureThreshold'];
+              int currentThresholdInt = 50;
+              if (rawThreshold is int) {
+                currentThresholdInt = rawThreshold;
+              } else if (rawThreshold is double) {
+                currentThresholdInt = rawThreshold.round();
+              } else if (rawThreshold is String) {
+                currentThresholdInt = int.tryParse(rawThreshold) ?? 50;
+              }
+              String currentThresholdString = currentThresholdInt.toString();
+              double currentThresholdDouble = currentThresholdInt.toDouble();
+
+              if (_soilMoistureThresholdController != null &&
+                  _soilMoistureThresholdController!.text !=
+                      currentThresholdString) {
+                _soilMoistureThresholdController!.text = currentThresholdString;
+              }
+              if (_sliderValue != currentThresholdDouble) {
+                _sliderValue = currentThresholdDouble;
+              }
+
+              dynamic rawPumpDuration = autoWateringData['pumpDurationWhenDry'];
+              _autoPumpDurationSeconds = 30;
+              if (rawPumpDuration is int) {
+                _autoPumpDurationSeconds = rawPumpDuration;
+              } else if (rawPumpDuration is String) {
+                _autoPumpDurationSeconds = int.tryParse(rawPumpDuration) ?? 30;
+              } else if (rawPumpDuration is double) {
+                _autoPumpDurationSeconds = rawPumpDuration.toInt();
+              }
+              if (_autoPumpDurationController != null &&
+                  _autoPumpDurationController!.text !=
+                      _autoPumpDurationSeconds.toString()) {
+                _autoPumpDurationController!.text =
+                    _autoPumpDurationSeconds.toString();
+              }
+            }
+          } else {
+            _deviceData = null;
+          }
+          _isLoading = false;
+          _error = _deviceData == null && !_isLoading
+              ? "Không tìm thấy dữ liệu thiết bị."
+              : null;
+        });
+      }
+    }, onError: (Object o) {
+      if (mounted) {
+        setState(() {
+          _error = "Lỗi tải dữ liệu: ${o.toString()}";
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _dataSubscription?.cancel();
+    _soilMoistureThresholdController?.dispose();
+    _autoPumpDurationController?.dispose();
+    super.dispose();
+  }
+
+  Widget _buildTitlePlaceholder(
+      {bool isActuallyLoading = false, double fontSize = 22}) {
+    // Actual height of Text("Điều khiển - Cây thủy sinh") with fontSize 22, bold is ~31.
+    // Padding is EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 12.0), so vertical is 28.
+    // Total height for title part: 31 + 28 = 59.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          20.0, 16.0, 20.0, 12.0), // This makes the total height ~59px
+      child: Container(
+        // Wrapping with container to give it a fixed height for skeleton
+        height: 31, // Matching approximate text height
+        alignment: Alignment.center,
+        child: isActuallyLoading
+            ? _buildPlaceholderContainer(fontSize * 0.8,
+                width: 200 + (widget.customName.length * 2.0),
+                radius: 6,
+                color: Colors.grey[300]!) // Placeholder text
+            : Text(
+                "Điều khiển - ${widget.customName}",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderContainer(double height,
+      {double? width,
+      Color? color, // Cho phép màu null để shimmer có tác dụng
+      double radius = 18.0,
+      EdgeInsetsGeometry? margin}) {
+    Widget placeholder = Container(
+      height: height,
+      width: width ?? double.infinity,
+      margin: margin,
+      decoration: BoxDecoration(
+          color: color ?? Colors.grey[300]!, // Màu nền cho shimmer
+          borderRadius: BorderRadius.circular(radius)),
+    );
+
+    // Chỉ áp dụng Shimmer nếu không có màu cụ thể được truyền vào (mặc định cho skeleton)
+    if (color == null) {
+      return Shimmer.fromColors(
+        baseColor: Colors.grey[300]!,
+        highlightColor: Colors.grey[100]!,
+        child: placeholder,
+      );
+    }
+    return placeholder;
+  }
+
+  Widget _buildCongTacSkeleton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+      child: Column(
+        key: ValueKey('CongTacSkeleton-${widget.deviceId}'),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildTitlePlaceholder(isActuallyLoading: true, fontSize: 20),
+          SizedBox(height: 20),
+          GridView.count(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            mainAxisSpacing: 18,
+            crossAxisSpacing: 18,
+            childAspectRatio: 1.1,
+            children: List.generate(4, (index) {
+              return Card(
+                // Mimicking the actual Card structure
+                elevation: 2.5,
+                margin: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22)),
+                color: Theme.of(context).cardColor,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildPlaceholderContainer(36,
+                              width: 36,
+                              radius: 18,
+                              color: Theme.of(context)
+                                  .primaryColor
+                                  .withOpacity(0.08)),
+                          _buildPlaceholderContainer(20,
+                              width: 45, radius: 10, color: Colors.grey[200]!),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildPlaceholderContainer(18,
+                              width: 80, radius: 4, color: Colors.grey[200]!),
+                          SizedBox(height: 4),
+                          _buildPlaceholderContainer(14,
+                              width: 60, radius: 4, color: Colors.grey[200]!),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ),
+          SizedBox(height: 10),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCuaCuonSkeleton() {
+    double buttonWidth = MediaQuery.of(context).size.width * 0.38;
+    double buttonHeight = 75;
+    double stopButtonHeight = 55;
+    double stopButtonWidth = MediaQuery.of(context).size.width * 0.55;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+      child: Column(
+        key: ValueKey('CuaCuonSkeletonScroll-${widget.deviceId}'),
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _buildTitlePlaceholder(isActuallyLoading: true, fontSize: 20),
+          SizedBox(height: 25),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            _buildPlaceholderContainer(buttonHeight,
+                width: buttonWidth, radius: 20, color: Colors.grey.shade300),
+            SizedBox(width: 16),
+            _buildPlaceholderContainer(buttonHeight,
+                width: buttonWidth, radius: 20, color: Colors.grey.shade300),
+          ]),
+          SizedBox(height: 25),
+          _buildPlaceholderContainer(stopButtonHeight,
+              width: stopButtonWidth, radius: 20, color: Colors.grey.shade300),
+          SizedBox(height: 13),
+        ],
+      ),
+    );
+  }
+
+// Hàm helper để tạo Card cho skeleton, giờ đây chấp nhận child
+  Widget _buildSkeletonCard(double height,
+      {Widget? child, // Thêm tham số child ở đây
+      EdgeInsetsGeometry? margin,
+      double radius = 18.0,
+      Color? cardColor}) {
+    return Card(
+      elevation: 1.5,
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+      margin: margin ?? EdgeInsets.symmetric(horizontal: 4.0, vertical: 6.0),
+      color: cardColor ??
+          Theme.of(context).cardTheme.color ??
+          const Color(0xFFFAFAFA),
+      child: child ??
+          SizedBox(
+              // Sử dụng child ở đây, hoặc SizedBox nếu child là null
+              height: height,
+              width: double.infinity),
+    );
+  }
+
+  Widget _buildCamBienNhietDoAmSkeleton() {
+    double titleFontSize = 18;
+
+    // Giảm nhẹ các giá trị này một chút xíu nữa để cố gắng fix 3.1px
+    double sensorCardEstimatedHeight = 76;
+    double relayItemEstimatedHeight = 80;
+    double autoWateringCardEstimatedHeight = 96;
+    double scheduleItemEstimatedHeight = 36;
+    double addScheduleButtonHeight = 26;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: 10.0, vertical: 3.0), // Giảm vertical padding
+      child: Column(
+        key: ValueKey('CamBienNhietDoAmSkeleton-${widget.deviceId}'),
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTitlePlaceholder(
+              isActuallyLoading: true, fontSize: titleFontSize),
+          SizedBox(height: 4), // Giảm
+
+          _buildSkeletonCard(sensorCardEstimatedHeight,
+              radius: 12,
+              margin:
+                  const EdgeInsets.symmetric(horizontal: 2.0, vertical: 2.0),
+              child: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildPlaceholderContainer(titleFontSize * 0.9,
+                        width: 135, radius: 4),
+                    _buildPlaceholderContainer(titleFontSize * 0.75,
+                        width: 165, radius: 3),
+                    _buildPlaceholderContainer(titleFontSize * 0.75,
+                        width: 175, radius: 3),
+                    _buildPlaceholderContainer(titleFontSize * 0.75,
+                        width: 135, radius: 3),
+                  ],
+                ),
+              )),
+          SizedBox(height: 5), // Giảm
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6.0),
+            child: _buildPlaceholderContainer(titleFontSize * 1.0,
+                width: 115, radius: 4),
+          ),
+          SizedBox(height: 5), // Giảm
+
+          GridView.count(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            mainAxisSpacing: 5, // Giảm
+            crossAxisSpacing: 5, // Giảm
+            childAspectRatio:
+                ((MediaQuery.of(context).size.width - 20 - 4 - 5) / 2) /
+                    relayItemEstimatedHeight,
+            padding: const EdgeInsets.symmetric(horizontal: 2.0),
+            children: List.generate(4, (index) {
+              return _buildSkeletonCard(relayItemEstimatedHeight,
+                  radius: 14,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _buildPlaceholderContainer(22,
+                                width: 22, radius: 11), // Giảm
+                            _buildPlaceholderContainer(15,
+                                width: 36, radius: 8), // Giảm
+                          ],
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildPlaceholderContainer(11,
+                                width: 65, radius: 3), // Giảm
+                            SizedBox(height: 3),
+                            _buildPlaceholderContainer(9,
+                                width: 45, radius: 3), // Giảm
+                          ],
+                        )
+                      ],
+                    ),
+                  ));
+            }),
+          ),
+          SizedBox(height: 5), // Giảm
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6.0),
+            child: _buildPlaceholderContainer(titleFontSize * 1.0,
+                width: 145, radius: 4),
+          ),
+          SizedBox(height: 4), // Giảm
+
+          _buildSkeletonCard(autoWateringCardEstimatedHeight,
+              radius: 12,
+              margin: EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+              child: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildPlaceholderContainer(15,
+                            width: 165, radius: 4), // Giảm
+                        _buildPlaceholderContainer(15,
+                            width: 36, radius: 8), // Giảm
+                      ],
+                    ),
+                    _buildPlaceholderContainer(11,
+                        width: 185, radius: 3), // Giảm
+                    _buildPlaceholderContainer(15,
+                        radius: 4), // Slider (giảm chiều cao)
+                    Row(
+                      children: [
+                        Expanded(
+                            child: _buildPlaceholderContainer(31,
+                                radius: 6)), // Giảm
+                        SizedBox(width: 6),
+                        Expanded(
+                            child: _buildPlaceholderContainer(31,
+                                radius: 6)), // Giảm
+                      ],
+                    )
+                  ],
+                ),
+              )),
+          SizedBox(height: 4), // Giảm
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6.0),
+            child: _buildPlaceholderContainer(titleFontSize * 1.0,
+                width: 165, radius: 4),
+          ),
+          SizedBox(height: 3), // Giảm
+          _buildSkeletonCard(scheduleItemEstimatedHeight,
+              radius: 10,
+              margin: EdgeInsets.symmetric(vertical: 2, horizontal: 2)),
+          SizedBox(height: 3), // Giảm
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 6.0),
+              child: _buildPlaceholderContainer(addScheduleButtonHeight,
+                  width: 105, radius: 14), // Giảm
+            ),
+          ),
+          // SizedBox(height: 2), // Bỏ SizedBox cuối cùng để cố gắng fix 3.1px tràn
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCuaCuonButton(BuildContext context,
+      {required String label,
+      required IconData icon,
+      required bool isActive,
+      required VoidCallback onTapDown,
+      required VoidCallback onTapUpOrCancel,
+      Color? activeColor,
+      Color? inactiveColor}) {
+    Timer? holdTimer;
+    Color currentBgColor = (isActive
+        ? (activeColor ?? Theme.of(context).primaryColor)
+        : (inactiveColor ?? Theme.of(context).colorScheme.surfaceVariant));
+    Color currentFgColor = isActive
+        ? Colors.white
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+
+    double buttonWidth = MediaQuery.of(context).size.width * 0.38;
+    double buttonHeight = 75;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTapDown: (_) {
+          holdTimer = Timer(const Duration(milliseconds: 20), onTapDown);
+        },
+        onTapUp: (_) {
+          holdTimer?.cancel();
+          onTapUpOrCancel();
+        },
+        onTapCancel: () {
+          holdTimer?.cancel();
+          onTapUpOrCancel();
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: buttonWidth,
+          height: buttonHeight,
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: currentBgColor,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(isActive ? 0.18 : 0.08),
+                  blurRadius: isActive ? 7 : 4,
+                  offset: Offset(0, isActive ? 4 : 2))
+            ],
+            gradient: isActive
+                ? LinearGradient(
+                    colors: [
+                      activeColor ?? Theme.of(context).primaryColor,
+                      (activeColor ?? Theme.of(context).primaryColor)
+                          .withOpacity(0.65)
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 30, color: currentFgColor),
+              SizedBox(height: 5),
+              Text(label,
+                  style: TextStyle(
+                      color: currentFgColor,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScheduledWateringList(BuildContext context, Map schedulesData) {
+    // ... (Previous _buildScheduledWateringList implementation) ...
+    // This method should be fine as is, focusing on layout of its parent.
+    // Ensure its internal card heights are reasonable.
+    if (schedulesData.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
+        child: Center(
+            child: Column(
+          children: [
+            Icon(Icons.calendar_month_outlined,
+                size: 40, color: Colors.grey[400]),
+            SizedBox(height: 12),
+            Text("Chưa có lịch tưới nào được thiết lập.",
+                style: TextStyle(
+                    fontSize: 15,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.grey[700])),
+          ],
+        )),
+      );
+    }
+    List<Widget> scheduleWidgets = [];
+    List<MapEntry<dynamic, dynamic>> sortedSchedules =
+        schedulesData.entries.toList()
+          ..sort((a, b) {
+            final timeA = a.value['time'] as String?;
+            final timeB = b.value['time'] as String?;
+            if (timeA == null && timeB == null) return 0;
+            if (timeA == null) return -1;
+            if (timeB == null) return 1;
+            return timeA.compareTo(timeB);
+          });
+
+    for (var entry in sortedSchedules) {
+      final scheduleId = entry.key as String;
+      final details = entry.value as Map<dynamic, dynamic>;
+      final bool itemIsActive = details['isActive'] as bool? ?? true;
+      final bool itemCheckSoil = details['checkSoilMoisture'] as bool? ?? false;
+
+      scheduleWidgets.add(Card(
+          elevation: itemIsActive ? 2.0 : 1.0,
+          margin: EdgeInsets.symmetric(vertical: 7.0, horizontal: 4.0),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          color: itemIsActive
+              ? Theme.of(context).cardColor
+              : Theme.of(context).cardColor.withOpacity(0.7),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16.0, 10.0, 8.0, 0.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(Icons.alarm_on_rounded,
+                        color: itemIsActive
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey.shade500,
+                        size: 28),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("${details['time'] ?? 'N/A'}",
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  color: itemIsActive
+                                      ? Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.color
+                                      : Colors.grey.shade700)),
+                          SizedBox(height: 2),
+                          Text(
+                              "Bơm: ${details['durationSeconds'] ?? '--'} giây.",
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: itemIsActive
+                                      ? Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.color
+                                          ?.withOpacity(0.8)
+                                      : Colors.grey.shade600)),
+                        ],
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.edit_calendar_outlined,
+                              color: Theme.of(context).colorScheme.secondary,
+                              size: 20),
+                          tooltip: "Sửa lịch",
+                          padding: EdgeInsets.all(4),
+                          constraints: BoxConstraints(),
+                          onPressed: () {
+                            _showAddEditScheduleDialog(context, widget.deviceId,
+                                widget.databaseReference,
+                                scheduleId: scheduleId, initialData: details);
+                          },
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete_forever_outlined,
+                              color: Colors.redAccent.shade100, size: 20),
+                          tooltip: "Xóa lịch",
+                          padding: EdgeInsets.all(4),
+                          constraints: BoxConstraints(),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: Text("Xác nhận xóa lịch"),
+                                content: Text(
+                                    "Bạn có chắc muốn xóa lịch tưới lúc ${details['time'] ?? ''}? Hành động này không thể hoàn tác."),
+                                actions: [
+                                  TextButton(
+                                      child: Text("Hủy"),
+                                      onPressed: () => Navigator.of(ctx).pop()),
+                                  TextButton(
+                                    child: Text("Xóa",
+                                        style: TextStyle(color: Colors.red)),
+                                    onPressed: () {
+                                      widget.databaseReference
+                                          .child(
+                                              'devices/${widget.deviceId}/autoWatering/scheduledWatering/schedules/$scheduleId')
+                                          .remove();
+                                      Navigator.of(ctx).pop();
+                                    },
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: CheckboxListTile(
+                        contentPadding: EdgeInsets.only(left: 0, right: -8),
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                        title: Text("Kích hoạt",
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color)),
+                        value: itemIsActive,
+                        onChanged: (bool? value) {
+                          if (value != null) {
+                            widget.databaseReference
+                                .child(
+                                    'devices/${widget.deviceId}/autoWatering/scheduledWatering/schedules/$scheduleId')
+                                .update({'isActive': value});
+                          }
+                        },
+                        controlAffinity: ListTileControlAffinity.leading,
+                        activeColor: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                    Expanded(
+                      child: CheckboxListTile(
+                        contentPadding: EdgeInsets.only(left: 0, right: 0),
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                        title: Text("Theo độ ẩm",
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color)),
+                        value: itemCheckSoil,
+                        onChanged: (bool? value) {
+                          if (value != null) {
+                            widget.databaseReference
+                                .child(
+                                    'devices/${widget.deviceId}/autoWatering/scheduledWatering/schedules/$scheduleId')
+                                .update({'checkSoilMoisture': value});
+                          }
+                        },
+                        controlAffinity: ListTileControlAffinity.leading,
+                        activeColor: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          )));
+    }
+    return Column(children: scheduleWidgets);
+  }
+
+  void _showAddEditScheduleDialog(
+      BuildContext context, String deviceId, DatabaseReference dbRef,
+      {String? scheduleId, Map<dynamic, dynamic>? initialData}) {
+    // ... (Previous _showAddEditScheduleDialog implementation from Part 2 of the previous response) ...
+    final formKey = GlobalKey<FormState>();
+    TimeOfDay? selectedTime;
+    String dialogTitle =
+        scheduleId == null ? "Thêm Lịch Tưới Mới" : "Chỉnh Sửa Lịch Tưới";
+
+    bool initialIsActive = true;
+    bool initialCheckSoil = false;
+
+    if (initialData != null) {
+      if (initialData['time'] != null) {
+        try {
+          final parts = (initialData['time'] as String).split(':');
+          selectedTime =
+              TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+        } catch (e) {
+          selectedTime = TimeOfDay.now();
+        }
+      } else {
+        selectedTime = TimeOfDay.now();
+      }
+      initialIsActive = initialData['isActive'] as bool? ?? true;
+      initialCheckSoil = initialData['checkSoilMoisture'] as bool? ?? false;
+    } else {
+      selectedTime = TimeOfDay(hour: 6, minute: 0);
+    }
+    final TextEditingController durationSecondsController =
+        TextEditingController(
+            text: initialData?['durationSeconds']?.toString() ?? '30');
+
+    bool currentIsActive = initialIsActive;
+    bool currentCheckSoil = initialCheckSoil;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (context, setStateDialog) {
+          return AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            titlePadding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+            title: Text(dialogTitle,
+                style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary)),
+            contentPadding: EdgeInsets.fromLTRB(20, 10, 20, 8),
+            content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Chọn thời gian bắt đầu tưới:",
+                          style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 15,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.color)),
+                      SizedBox(height: 8),
+                      InkWell(
+                          onTap: () async {
+                            final TimeOfDay? picked = await showTimePicker(
+                              context: context,
+                              initialTime: selectedTime ?? TimeOfDay.now(),
+                              builder: (BuildContext context, Widget? child) {
+                                return Theme(
+                                  data: Theme.of(context).copyWith(
+                                    colorScheme: Theme.of(context)
+                                        .colorScheme
+                                        .copyWith(
+                                          primary:
+                                              Theme.of(context).primaryColor,
+                                          onPrimary: Colors.white,
+                                          surface: Theme.of(context)
+                                              .dialogBackgroundColor,
+                                          onSurface: Theme.of(context)
+                                              .textTheme
+                                              .bodyLarge
+                                              ?.color,
+                                        ),
+                                    timePickerTheme: TimePickerThemeData(
+                                      dialHandColor:
+                                          Theme.of(context).primaryColorDark,
+                                    ),
+                                    textButtonTheme: TextButtonThemeData(
+                                      style: TextButton.styleFrom(
+                                        foregroundColor:
+                                            Theme.of(context).primaryColorDark,
+                                      ),
+                                    ),
+                                  ),
+                                  child: child!,
+                                );
+                              },
+                            );
+                            if (picked != null && picked != selectedTime) {
+                              setStateDialog(() {
+                                selectedTime = picked;
+                              });
+                            }
+                          },
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 12),
+                            decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade400),
+                                borderRadius: BorderRadius.circular(10)),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Icon(Icons.access_time_filled_rounded,
+                                    color: Theme.of(context).primaryColor,
+                                    size: 22),
+                                Text(
+                                    selectedTime?.format(context) ??
+                                        'Chưa chọn',
+                                    style: TextStyle(
+                                        fontSize: 16.5,
+                                        fontWeight: FontWeight.w500)),
+                                Icon(Icons.arrow_drop_down_circle_outlined,
+                                    color: Colors.grey.shade700, size: 22),
+                              ],
+                            ),
+                          )),
+                      SizedBox(height: 18),
+                      Text("Thời lượng bơm (tính bằng giây):",
+                          style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 15,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.color)),
+                      SizedBox(height: 8),
+                      TextFormField(
+                        controller: durationSecondsController,
+                        decoration: InputDecoration(
+                            hintText: "VD: 30",
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            contentPadding: EdgeInsets.symmetric(
+                                vertical: 14.0, horizontal: 16.0),
+                            prefixIcon: Icon(Icons.timer_outlined, size: 20)),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty)
+                            return 'Không được để trống';
+                          final n = int.tryParse(value);
+                          if (n == null || n <= 0) return 'Phải là số dương';
+                          if (n > 600) return 'Tối đa 600 giây (10 phút)';
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 12),
+                      CheckboxListTile(
+                        title: Text("Kích hoạt lịch này",
+                            style: TextStyle(
+                                fontSize: 14.5,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color)),
+                        value: currentIsActive,
+                        onChanged: (bool? value) {
+                          if (value != null) {
+                            setStateDialog(() {
+                              currentIsActive = value;
+                            });
+                          }
+                        },
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 0),
+                        dense: true,
+                        activeColor: Theme.of(context).primaryColor,
+                      ),
+                      CheckboxListTile(
+                        title: Text("Kiểm tra độ ẩm đất trước khi tưới",
+                            style: TextStyle(
+                                fontSize: 14.5,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color)),
+                        subtitle: Text(
+                            "(Nếu đất còn ẩm > ngưỡng, hệ thống sẽ bỏ qua)",
+                            style: TextStyle(
+                                fontSize: 11.5, color: Colors.grey[600])),
+                        value: currentCheckSoil,
+                        onChanged: (bool? value) {
+                          if (value != null) {
+                            setStateDialog(() {
+                              currentCheckSoil = value;
+                            });
+                          }
+                        },
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 0),
+                        dense: true,
+                        activeColor: Theme.of(context).primaryColor,
+                      ),
+                    ],
+                  ),
+                )),
+            actionsAlignment: MainAxisAlignment.end,
+            actionsPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            actions: [
+              TextButton(
+                  style: TextButton.styleFrom(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 18, vertical: 10)),
+                  child: Text("HỦY",
+                      style: TextStyle(
+                          color: Colors.grey[700],
+                          fontWeight: FontWeight.w600)),
+                  onPressed: () => Navigator.of(ctx).pop()),
+              ElevatedButton.icon(
+                icon: Icon(Icons.save_alt_rounded, size: 20),
+                label: Text("LƯU LỊCH",
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10))),
+                onPressed: () {
+                  if (formKey.currentState!.validate() &&
+                      selectedTime != null) {
+                    final duration = int.parse(durationSecondsController.text);
+                    final Map<String, dynamic> newScheduleData = {
+                      'time':
+                          '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}',
+                      'durationSeconds': duration,
+                      'isActive': currentIsActive,
+                      'checkSoilMoisture': currentCheckSoil,
+                    };
+
+                    String currentScheduleId = scheduleId ??
+                        dbRef
+                            .child(
+                                'devices/$deviceId/autoWatering/scheduledWatering/schedules')
+                            .push()
+                            .key!;
+
+                    dbRef
+                        .child(
+                            'devices/$deviceId/autoWatering/scheduledWatering/schedules/$currentScheduleId')
+                        .set(newScheduleData);
+                    Navigator.of(ctx).pop();
+                  } else if (selectedTime == null) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Vui lòng chọn giờ tưới.")));
+                    }
+                  }
+                },
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget content;
+
+    if (_isLoading) {
+      if (widget.deviceId.startsWith('CongTac')) {
+        content = _buildCongTacSkeleton();
+      } else if (widget.deviceId.startsWith('CuaCuon')) {
+        content = _buildCuaCuonSkeleton();
+      } else if (widget.deviceId.startsWith('CamBienNhietDoAm')) {
+        content = _buildCamBienNhietDoAmSkeleton();
+      } else {
+        content = Column(
+          key: ValueKey('GenericLoadingSkeleton-${widget.deviceId}'),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildTitlePlaceholder(isActuallyLoading: true),
+            SizedBox(
+              height: 250,
+              width: double.infinity,
+              child: const Center(child: CircularProgressIndicator()),
+            )
+          ],
+        );
+      }
+    } else if (_error != null) {
+      content = Column(
+        key: ValueKey('errorState-${widget.deviceId}'),
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          _buildTitlePlaceholder(),
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Center(
+                child: Column(
+              children: [
+                Icon(Icons.error_outline_rounded,
+                    color: Colors.redAccent, size: 50),
+                SizedBox(height: 15),
+                Text('Đã xảy ra lỗi',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                SizedBox(height: 8),
+                Text(_error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 15, color: Colors.grey[700])),
+              ],
+            )),
+          ),
+        ],
+      );
+    } else if (_deviceData == null) {
+      content = Column(
+        key: ValueKey('noDataState-${widget.deviceId}'),
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          _buildTitlePlaceholder(),
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Center(
+                child: Column(
+              children: [
+                Icon(Icons.search_off_rounded,
+                    color: Colors.grey[400], size: 50),
+                SizedBox(height: 15),
+                Text('Không tìm thấy dữ liệu cho thiết bị này.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Colors.grey[700])),
+              ],
+            )),
+          ),
+        ],
+      );
+    } else {
+      final deviceData = _deviceData!;
+      final autoWateringData =
+          _deviceData!['autoWatering'] as Map<dynamic, dynamic>? ?? {};
+
+      if (widget.deviceId.startsWith('CongTac')) {
+        content = SingleChildScrollView(
+          key: ValueKey('CongTacScroll-${widget.deviceId}'),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+          child: Column(
+            key: ValueKey('CongTac-${widget.deviceId}'),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTitlePlaceholder(),
+              const SizedBox(height: 20),
+              GridView.count(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                mainAxisSpacing: 18,
+                crossAxisSpacing: 18,
+                childAspectRatio: 1.1,
+                children: List.generate(4, (index) {
+                  final switchId = 'D${index + 1}';
+                  final switchStatus = deviceData[switchId] == 'on';
+                  return Card(
+                    elevation: switchStatus ? 5 : 2.5,
+                    margin: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(22)),
+                    color: switchStatus
+                        ? Theme.of(context).primaryColor.withOpacity(0.85)
+                        : Theme.of(context).cardColor,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(22),
+                      onTap: () {
+                        bool newValue = !switchStatus;
+                        widget.databaseReference
+                            .child('devices/${widget.deviceId}')
+                            .update({switchId: newValue ? 'on' : 'off'});
+                        if (widget.currentUser != null) {
+                          widget.databaseReference
+                              .child(
+                                  'users/${widget.currentUser!.uid}/devices/${widget.deviceId}')
+                              .update({switchId: newValue ? 'on' : 'off'});
+                        }
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: switchStatus
+                                        ? Colors.white.withOpacity(0.25)
+                                        : Theme.of(context)
+                                            .primaryColor
+                                            .withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(Icons.power_rounded,
+                                      size: 28,
+                                      color: switchStatus
+                                          ? Colors.white
+                                          : Theme.of(context).primaryColor),
+                                ),
+                                Transform.scale(
+                                    scale: 0.9,
+                                    alignment: Alignment.topRight,
+                                    child: Switch(
+                                      value: switchStatus,
+                                      onChanged: (value) {
+                                        widget.databaseReference
+                                            .child('devices/${widget.deviceId}')
+                                            .update({
+                                          switchId: value ? 'on' : 'off'
+                                        });
+                                      },
+                                      activeColor: Colors.white,
+                                      activeTrackColor:
+                                          Colors.white.withOpacity(0.5),
+                                      inactiveThumbColor: Colors.grey.shade400,
+                                      inactiveTrackColor: Colors.grey.shade200,
+                                    )),
+                              ],
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Thiết bị ${index + 1}',
+                                    style: TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.bold,
+                                        color: switchStatus
+                                            ? Colors.white
+                                            : Theme.of(context)
+                                                .textTheme
+                                                .titleLarge
+                                                ?.color)),
+                                SizedBox(height: 2),
+                                Text(switchStatus ? "ĐANG BẬT" : "ĐANG TẮT",
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        letterSpacing: 0.5,
+                                        color: switchStatus
+                                            ? Colors.white.withOpacity(0.85)
+                                            : Colors.grey[600])),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              SizedBox(height: 10),
+            ],
+          ),
+        );
+      } else if (widget.deviceId.startsWith('CuaCuon')) {
+        final bool upStatus =
+            deviceData['up'] == 'on' || deviceData['Up'] == 'on';
+        final bool downStatus = deviceData['down'] == 'on';
+        final bool stopStatus = deviceData['stop'] == 'on';
+
+        content = SingleChildScrollView(
+          key: ValueKey('CuaCuon-${widget.deviceId}'),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _buildTitlePlaceholder(),
+              const SizedBox(height: 25),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildCuaCuonButton(context,
+                      label: "Mở Lên",
+                      icon: Icons.keyboard_double_arrow_up_rounded,
+                      isActive: upStatus,
+                      activeColor: Colors.tealAccent[700], onTapDown: () {
+                    widget.databaseReference
+                        .child('devices/${widget.deviceId}')
+                        .update({'up': 'on', 'stop': 'off', 'down': 'off'});
+                  }, onTapUpOrCancel: () {
+                    widget.databaseReference
+                        .child('devices/${widget.deviceId}')
+                        .update({'up': 'off'});
+                  }),
+                  SizedBox(width: 16.0),
+                  _buildCuaCuonButton(context,
+                      label: "Đóng Xuống",
+                      icon: Icons.keyboard_double_arrow_down_rounded,
+                      isActive: downStatus,
+                      activeColor: Colors.lightBlueAccent[700], onTapDown: () {
+                    widget.databaseReference
+                        .child('devices/${widget.deviceId}')
+                        .update({'down': 'on', 'stop': 'off', 'up': 'off'});
+                  }, onTapUpOrCancel: () {
+                    widget.databaseReference
+                        .child('devices/${widget.deviceId}')
+                        .update({'down': 'off'});
+                  }),
+                ],
+              ),
+              const SizedBox(height: 25),
+              ElevatedButton.icon(
+                icon: Icon(Icons.stop_screen_share_rounded,
+                    color: Colors.white, size: 34),
+                label: Text("DỪNG",
+                    style: TextStyle(
+                        fontSize: 20,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      stopStatus ? Colors.red.shade600 : Colors.red.shade400,
+                  padding: EdgeInsets.symmetric(horizontal: 60, vertical: 22),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
+                  elevation: stopStatus ? 5 : 10,
+                ),
+                onPressed: () {
+                  widget.databaseReference
+                      .child('devices/${widget.deviceId}')
+                      .update({'up': 'off', 'down': 'off', 'stop': 'on'});
+                },
+              ),
+              const SizedBox(height: 14),
+            ],
+          ),
+        );
+      } else if (widget.deviceId.startsWith('CamBienNhietDoAm')) {
+        final bool autoWateringOverallEnabled =
+            autoWateringData['enabled'] as bool? ?? false;
+        final bool scheduledWateringOverallEnabled =
+            autoWateringData['scheduledWatering']?['enabled'] as bool? ?? false;
+        final Map<dynamic, dynamic> schedulesMap =
+            autoWateringData['scheduledWatering']?['schedules']
+                    as Map<dynamic, dynamic>? ??
+                {};
+
+        content = SingleChildScrollView(
+          key: ValueKey('CamBien-${widget.deviceId}'),
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTitlePlaceholder(),
+              const SizedBox(height: 10),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 4.0, vertical: 6.0),
+                child: Card(
+                  elevation: 2.5,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18.0)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Thông số cảm biến",
+                              style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color:
+                                      Theme.of(context).colorScheme.secondary)),
+                          SizedBox(height: 12),
+                          Row(children: [
+                            Icon(FontAwesomeIcons.thermometerHalf,
+                                color: Colors.redAccent, size: 20),
+                            SizedBox(width: 12),
+                            Expanded(
+                                child: Text(
+                                    "Nhiệt độ: ${deviceData['temperature'] ?? '--'} °C",
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        color: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge
+                                            ?.color)))
+                          ]),
+                          SizedBox(height: 8),
+                          Row(children: [
+                            Icon(FontAwesomeIcons.water,
+                                color: Colors.blueAccent, size: 20),
+                            SizedBox(width: 12),
+                            Expanded(
+                                child: Text(
+                                    "Độ ẩm không khí: ${deviceData['humidity'] ?? '--'} %",
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        color: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge
+                                            ?.color)))
+                          ]),
+                          SizedBox(height: 8),
+                          Row(children: [
+                            Icon(FontAwesomeIcons.seedling,
+                                color: Colors.green.shade600, size: 20),
+                            SizedBox(width: 12),
+                            Expanded(
+                                child: Text(
+                                    "Độ ẩm đất: ${deviceData['soilMoisture'] ?? '--'} %",
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        color: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge
+                                            ?.color)))
+                          ]),
+                        ]),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 15),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Text("Điều khiển Relay",
+                    style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.titleMedium?.color)),
+              ),
+              const SizedBox(height: 15),
+              GridView.count(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 1.1,
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                children: _sensorRelaysInfo.map((relayInfo) {
+                  final String relayKey = relayInfo['key'];
+                  final String relayName = relayInfo['name'];
+                  final IconData relayIcon = relayInfo['icon'];
+                  bool switchStatus = false;
+                  if (_deviceData != null && _deviceData![relayKey] != null) {
+                    if (_deviceData![relayKey] is bool) {
+                      switchStatus = _deviceData![relayKey] as bool;
+                    } else if (_deviceData![relayKey] is String) {
+                      switchStatus = _deviceData![relayKey] == 'on';
+                    }
+                  }
+
+                  return Card(
+                    elevation: switchStatus ? 6 : 3,
+                    margin: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24)),
+                    color: switchStatus
+                        ? Theme.of(context).primaryColor
+                        : Theme.of(context).cardColor,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(24),
+                      onTap: () {
+                        bool newValue = !switchStatus;
+                        widget.databaseReference
+                            .child('devices/${widget.deviceId}')
+                            .update({relayKey: newValue ? 'on' : 'off'});
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12.0, vertical: 16.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: switchStatus
+                                        ? Colors.white.withOpacity(0.2)
+                                        : Theme.of(context)
+                                            .primaryColor
+                                            .withOpacity(0.08),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(relayIcon,
+                                      size: 26,
+                                      color: switchStatus
+                                          ? Colors.white
+                                          : Theme.of(context).primaryColorDark),
+                                ),
+                                Switch(
+                                  value: switchStatus,
+                                  onChanged: (value) {
+                                    widget.databaseReference
+                                        .child('devices/${widget.deviceId}')
+                                        .update(
+                                            {relayKey: value ? 'on' : 'off'});
+                                  },
+                                  activeColor: Colors.white,
+                                  activeTrackColor:
+                                      Colors.white.withOpacity(0.4),
+                                  inactiveThumbColor: Colors.grey.shade400,
+                                  inactiveTrackColor: Colors.grey.shade200,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(relayName,
+                                    textAlign: TextAlign.left,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: switchStatus
+                                            ? Colors.white
+                                            : Theme.of(context)
+                                                .textTheme
+                                                .titleMedium
+                                                ?.color)),
+                                SizedBox(height: 3),
+                                Text(switchStatus ? "ĐANG BẬT" : "ĐANG TẮT",
+                                    style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 0.6,
+                                        color: switchStatus
+                                            ? Colors.white.withOpacity(0.9)
+                                            : Colors.grey.shade500)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              Divider(
+                  height: 30,
+                  thickness: 1,
+                  indent: 8,
+                  endIndent: 8,
+                  color: Colors.grey[300]),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Text("Tưới Tự Động",
+                    style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary)),
+              ),
+              Card(
+                  elevation: 2,
+                  margin: EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18)),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SwitchListTile(
+                          title: Text("Kích hoạt chế độ tự động",
+                              style: TextStyle(
+                                  fontSize: 16.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.color)),
+                          value: autoWateringOverallEnabled,
+                          onChanged: (bool value) {
+                            widget.databaseReference
+                                .child(
+                                    'devices/${widget.deviceId}/autoWatering')
+                                .update({'enabled': value});
+                          },
+                          activeColor: Theme.of(context).primaryColor,
+                          dense: false,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 4),
+                          secondary: Icon(Icons.eco_rounded,
+                              color: autoWateringOverallEnabled
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.grey),
+                        ),
+                        if (autoWateringOverallEnabled) ...[
+                          SizedBox(height: 16),
+                          Text(
+                              "Ngưỡng độ ẩm đất để tưới: ${_sliderValue.round()}%",
+                              style: TextStyle(
+                                  fontSize: 15.5,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodyLarge
+                                      ?.color)),
+                          Slider(
+                            value: _sliderValue,
+                            min: 0,
+                            max: 100,
+                            divisions: 20,
+                            label: "${_sliderValue.round()}%",
+                            activeColor: Theme.of(context).primaryColor,
+                            inactiveColor:
+                                Theme.of(context).primaryColor.withOpacity(0.3),
+                            onChanged: (double value) {
+                              setState(() {
+                                _sliderValue = value;
+                                _soilMoistureThresholdController?.text =
+                                    value.round().toString();
+                              });
+                            },
+                            onChangeEnd: (double value) {
+                              int finalThreshold = value.round();
+                              widget.databaseReference
+                                  .child(
+                                      'devices/${widget.deviceId}/autoWatering')
+                                  .update({
+                                'soilMoistureThreshold': finalThreshold
+                              });
+                            },
+                          ),
+                          SizedBox(height: 12),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _soilMoistureThresholdController,
+                                  decoration: InputDecoration(
+                                    labelText: "Ngưỡng ẩm",
+                                    hintText: "0-100",
+                                    border: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                    contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 14),
+                                    suffixText: "%",
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500),
+                                  onChanged: (String value) {
+                                    double? typedValue = double.tryParse(value);
+                                    if (typedValue != null &&
+                                        typedValue >= 0 &&
+                                        typedValue <= 100) {
+                                      if (_sliderValue.round() !=
+                                          typedValue.round()) {
+                                        setState(() {
+                                          _sliderValue = typedValue;
+                                        });
+                                      }
+                                    }
+                                  },
+                                  onFieldSubmitted: (String value) {
+                                    int? threshold = int.tryParse(value);
+                                    if (threshold != null &&
+                                        threshold >= 0 &&
+                                        threshold <= 100) {
+                                      widget.databaseReference
+                                          .child(
+                                              'devices/${widget.deviceId}/autoWatering')
+                                          .update({
+                                        'soilMoistureThreshold': threshold
+                                      });
+                                      if (_sliderValue.round() != threshold) {
+                                        setState(() {
+                                          _sliderValue = threshold.toDouble();
+                                        });
+                                      }
+                                    } else {
+                                      _soilMoistureThresholdController?.text =
+                                          _sliderValue.round().toString();
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(SnackBar(
+                                                content: Text(
+                                                    "Ngưỡng ẩm không hợp lệ (0-100).")));
+                                      }
+                                    }
+                                  },
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Nhập ngưỡng';
+                                    }
+                                    final n = int.tryParse(value);
+                                    if (n == null || n < 0 || n > 100) {
+                                      return '0-100';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _autoPumpDurationController,
+                                  decoration: InputDecoration(
+                                    labelText: "Bơm (giây)",
+                                    hintText: "1-600",
+                                    border: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                    contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 14),
+                                    suffixText: "giây",
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500),
+                                  onFieldSubmitted: (String value) {
+                                    int? duration = int.tryParse(value);
+                                    if (duration != null &&
+                                        duration > 0 &&
+                                        duration <= 600) {
+                                      widget.databaseReference
+                                          .child(
+                                              'devices/${widget.deviceId}/autoWatering')
+                                          .update({
+                                        'pumpDurationWhenDry': duration
+                                      });
+                                      setState(() {
+                                        _autoPumpDurationSeconds = duration;
+                                      });
+                                    } else {
+                                      _autoPumpDurationController?.text =
+                                          _autoPumpDurationSeconds.toString();
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(SnackBar(
+                                                content: Text(
+                                                    "Thời gian bơm không hợp lệ (1-600 giây).")));
+                                      }
+                                    }
+                                  },
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Nhập thời gian';
+                                    }
+                                    final n = int.tryParse(value);
+                                    if (n == null || n <= 0 || n > 600) {
+                                      return '1-600';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  )),
+              if (autoWateringOverallEnabled) ...[
+                Divider(
+                    height: 25,
+                    thickness: 1,
+                    indent: 8,
+                    endIndent: 8,
+                    color: Colors.grey[300]),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("Tưới Theo Lịch Trình",
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.color)),
+                      Switch(
+                        value: scheduledWateringOverallEnabled,
+                        onChanged: (bool value) {
+                          widget.databaseReference
+                              .child(
+                                  'devices/${widget.deviceId}/autoWatering/scheduledWatering')
+                              .update({'enabled': value});
+                        },
+                        activeColor: Theme.of(context).primaryColor,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ],
+                  ),
+                ),
+                if (scheduledWateringOverallEnabled) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 4.0, vertical: 6.0),
+                    child: _buildScheduledWateringList(context, schedulesMap),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(
+                        right: 8.0, top: 6.0, bottom: 8.0),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context)
+                                .primaryColor
+                                .withOpacity(0.15),
+                            foregroundColor: Theme.of(context).primaryColorDark,
+                            elevation: 0,
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 18, vertical: 10),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12))),
+                        icon: Icon(Icons.add_alarm_rounded, size: 20),
+                        label: Text("Thêm Lịch Tưới",
+                            style: TextStyle(
+                                fontSize: 14.5, fontWeight: FontWeight.w500)),
+                        onPressed: () {
+                          _showAddEditScheduleDialog(context, widget.deviceId,
+                              widget.databaseReference);
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+              SizedBox(height: 10),
+            ],
+          ),
+        );
+      } else {
+        content = Center(
+            key: ValueKey('Unknown-${widget.deviceId}'),
+            child: const Text('Loại thiết bị không xác định.'));
+      }
+    }
+    return Padding(
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 10.0,
+          left: 8.0,
+          right: 8.0,
+          top: 8.0),
+      child: content,
+    );
+  }
+}
+// End of Part 2

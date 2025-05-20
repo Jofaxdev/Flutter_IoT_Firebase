@@ -7,6 +7,8 @@ import 'home_page.dart';
 import 'package:esp8266_project/constant.dart';
 
 class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
   @override
   _LoginPageState createState() => _LoginPageState();
 }
@@ -45,7 +47,7 @@ class _LoginPageState extends State<LoginPage>
 
     // Khởi tạo AnimationController
     _controller = AnimationController(
-      duration: Duration(seconds: 1),
+      duration: const Duration(seconds: 1),
       vsync: this,
     );
 
@@ -110,7 +112,7 @@ class _LoginPageState extends State<LoginPage>
                 );
               },
             ),
-            SizedBox(height: 32),
+            const SizedBox(height: 32),
             // Văn bản "Welcome to Tim!"
             FadeTransition(
               opacity: _opacityAnimation,
@@ -123,7 +125,7 @@ class _LoginPageState extends State<LoginPage>
                 ),
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             // Văn bản mô tả
             FadeTransition(
               opacity: _opacityAnimation,
@@ -136,15 +138,15 @@ class _LoginPageState extends State<LoginPage>
                 ),
               ),
             ),
-            SizedBox(height: 32),
+            const SizedBox(height: 32),
             // Nút đăng nhập với hiệu ứng độ mờ
             FadeTransition(
               opacity: _opacityAnimation,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: ButtonColor,
-                  padding: EdgeInsets.symmetric(horizontal: 50, vertical: 16),
-                  textStyle: TextStyle(fontSize: 18),
+                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 16),
+                  textStyle: const TextStyle(fontSize: 18),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
                   ),
@@ -157,7 +159,7 @@ class _LoginPageState extends State<LoginPage>
                     );
                   }
                 },
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(FontAwesomeIcons.google, color: Colors.white),

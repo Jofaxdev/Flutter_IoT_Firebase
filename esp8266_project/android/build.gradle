@@ -1,11 +1,13 @@
 
 buildscript {
-    ext.kotlin_version = "1.9.10" // Đảm bảo đây là phiên bản mới nhất hoặc tương thích
+    // ext.kotlin_version = "1.9.10" // Đảm bảo đây là phiên bản mới nhất hoặc tương thích
+    ext.kotlin_version = "2.1.0" // Đảm bảo đây là phiên bản mới nhất hoặc tương thích
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
+        classpath 'com.android.tools.build:gradle:8.3.2' // Nâng cấp AGP
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath 'com.google.gms:google-services:4.3.15' //Lỗi này nè không nên xài 4.4.2
 //        id("com.google.gms.google-services") version "4.4.2" apply false
@@ -30,4 +32,12 @@ subprojects {
 
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
+}
+
+subprojects {
+    project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            jvmTarget = "1.8"
+        }
+    }
 }

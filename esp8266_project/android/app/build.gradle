@@ -2,7 +2,7 @@ plugins{
     id 'com.android.application'
     id 'com.google.gms.google-services'
     id 'kotlin-android'
-    id 'org.jetbrains.kotlin.android'
+    // id 'org.jetbrains.kotlin.android'
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id 'dev.flutter.flutter-gradle-plugin'
 }
@@ -10,13 +10,16 @@ plugins{
 
 android {
     namespace = "com.example.esp8266_project"
-    compileSdk = flutter.compileSdkVersion
+    // compileSdk = flutter.compileSdkVersion
+        compileSdk 35 // Or the highest SDK version required
+
 //    ndkVersion = flutter.ndkVersion
     ndkVersion "25.1.8937393"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
+        coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
@@ -50,6 +53,7 @@ flutter {
 }
 
 dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4' // <-- Replace 2.0.4 with the latest version from the Android docs
     implementation platform('com.google.firebase:firebase-bom:33.2.0')
     implementation 'com.google.firebase:firebase-analytics'
 //    id 'com.google.gms.google-services' version '4.4.2' apply false

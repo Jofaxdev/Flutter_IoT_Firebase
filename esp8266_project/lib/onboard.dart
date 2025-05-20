@@ -6,7 +6,7 @@ import 'package:esp8266_project/constant.dart';
 import 'package:esp8266_project/model/allinonboardscreen.dart';
 
 class OnboardScreen extends StatefulWidget {
-  OnboardScreen({Key? key}) : super(key: key);
+  const OnboardScreen({super.key});
 
   @override
   State<OnboardScreen> createState() => _OnboardScreenState();
@@ -49,12 +49,12 @@ class _OnboardScreenState extends State<OnboardScreen> {
 
   void _startTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(Duration(seconds: 4), (Timer timer) {
+    _timer = Timer.periodic(const Duration(seconds: 4), (Timer timer) {
       if (_pageController.hasClients && _pageController.page != null) {
         currentIndex = (currentIndex + 1) % allinonboardlist.length;
         _pageController.animateToPage(
           currentIndex,
-          duration: Duration(milliseconds: 500),
+          duration: const Duration(milliseconds: 500),
           curve: Curves.ease,
         );
       }
@@ -89,7 +89,7 @@ class _OnboardScreenState extends State<OnboardScreen> {
                   },
                   itemCount: allinonboardlist.length,
                   itemBuilder: (context, index) {
-                    return Container(
+                    return SizedBox(
                       height:
                           constraints.maxHeight * 0.6, // Đặt chiều cao cụ thể
                       width: constraints.maxWidth,
@@ -126,7 +126,7 @@ class _OnboardScreenState extends State<OnboardScreen> {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     backgroundColor: ButtonColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20.0),
@@ -148,11 +148,11 @@ class _OnboardScreenState extends State<OnboardScreen> {
   AnimatedContainer buildDot({int? index}) {
     return AnimatedContainer(
       duration: kAnimationDuration,
-      margin: EdgeInsets.only(right: 5),
+      margin: const EdgeInsets.only(right: 5),
       height: 6,
       width: currentIndex == index ? 20 : 6,
       decoration: BoxDecoration(
-        color: currentIndex == index ? primarygreen : Color(0xFFD8D8D8),
+        color: currentIndex == index ? primarygreen : const Color(0xFFD8D8D8),
         borderRadius: BorderRadius.circular(3),
       ),
     );
@@ -164,12 +164,12 @@ class PageBuilderWidget extends StatelessWidget {
   final String description;
   final String imgurl;
 
-  PageBuilderWidget({
-    Key? key,
+  const PageBuilderWidget({
+    super.key,
     required this.title,
     required this.description,
     required this.imgurl,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
