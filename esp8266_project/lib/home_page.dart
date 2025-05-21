@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart'; // Thêm import này
 import 'package:shimmer/shimmer.dart';
 
 import 'package:esp8266_project/login_pages.dart';
-import 'package:esp8266_project/widget/QrScanner.dart';
+import 'package:esp8266_project/widget/QrScanner.dart'; // This is the import
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
