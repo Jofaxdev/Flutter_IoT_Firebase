@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:google_fonts/google_fonts.dart'; // Thêm import này
 import 'package:shimmer/shimmer.dart';
 
 import 'package:esp8266_project/login_pages.dart';
@@ -17,34 +18,17 @@ class HomePage extends StatelessWidget {
 
   HomePage({Key? key}) : super(key: key);
 
-  Future<void> _deleteDevice(String deviceId, BuildContext context) async {
-    final User? user = _auth.currentUser;
-    if (user != null) {
-      try {
-        await _databaseReference
-            .child('users/${user.uid}/devices/$deviceId')
-            .remove();
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Đã xóa thiết bị $deviceId')),
-          );
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi khi xóa thiết bị: $e')),
-          );
-        }
-      }
-    }
-  }
+// Bên trong class HomePage
 
   Future<void> _showDeleteConfirmationDialog(
       BuildContext context, String deviceId, String customName) async {
     return showDialog<void>(
       context: context,
-      barrierDismissible: true,
+      barrierDismissible: true, // Người dùng có thể nhấn ra ngoài để đóng
       builder: (BuildContext dialogContext) {
+        // Sử dụng một biến để quản lý trạng thái đang xóa, nếu muốn hiển thị loading indicator
+        // bool _isDeleting = false; // Bỏ qua nếu không dùng loading indicator phức tạp trong dialog
+
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
@@ -98,15 +82,48 @@ class HomePage extends StatelessWidget {
                   padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10))),
-              onPressed: () async {
-                await _deleteDevice(deviceId, context);
+              onPressed: () {
+                // Bước 1: Đóng dialog ngay lập tức
                 Navigator.of(dialogContext).pop();
+
+                // Bước 2: Thực hiện tác vụ xóa (không cần await ở đây nếu không muốn chặn UI sau khi dialog đóng)
+                // _deleteDevice vẫn là async và sẽ chạy, SnackBar sẽ hiển thị khi nó hoàn thành.
+                _deleteDevice(deviceId, context);
+
+                // Không cần await _deleteDevice(deviceId, context); ở đây nữa
+                // vì chúng ta muốn dialog đóng ngay.
+                // SnackBar trong _deleteDevice sẽ thông báo kết quả.
               },
             ),
           ],
         );
       },
     );
+  }
+
+// Hàm _deleteDevice của bạn giữ nguyên như hiện tại
+  Future<void> _deleteDevice(String deviceId, BuildContext context) async {
+    final User? user = _auth.currentUser;
+    if (user != null) {
+      try {
+        await _databaseReference
+            .child('users/${user.uid}/devices/$deviceId')
+            .remove();
+        // Đảm bảo context vẫn còn mounted trước khi hiển thị SnackBar
+        // Vì context của dialog đã bị pop, context truyền vào đây là context của HomePage
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Đã xóa thiết bị $deviceId')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi khi xóa thiết bị: $e')),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _addDevice(String deviceId, BuildContext context) async {
@@ -364,16 +381,20 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  void _showEditDialog(
-      BuildContext context, String deviceId, String name, Color color) {
+// Bên trong class HomePage
+
+  void _showEditDialog(BuildContext context, String deviceId,
+      String currentCustomName, Color currentColor) {
     final TextEditingController nameController =
-        TextEditingController(text: name);
+        TextEditingController(text: currentCustomName);
     final User? user = _auth.currentUser;
-    Color selectedColor = color;
+    Color selectedColor = currentColor;
+    final int maxNameLength = 20;
 
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
+        // Đây là context của dialog
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setStateDialog) {
             return AlertDialog(
@@ -394,56 +415,81 @@ class HomePage extends StatelessWidget {
                   ),
                 ],
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameController,
-                    decoration: InputDecoration(
-                      hintText: 'Nhập tên tùy chỉnh',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Tên tùy chỉnh cho thiết bị:",
+                      style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                          fontWeight: FontWeight.w500),
                     ),
-                  ),
-                  SizedBox(height: 20),
-                  Text("Chọn Màu:",
-                      style: TextStyle(fontSize: 14, color: Colors.grey[700])),
-                  SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildColorOption(context, Colors.blue, selectedColor,
-                          () {
-                        setStateDialog(() {
-                          selectedColor = Colors.blue;
-                        });
-                      }),
-                      _buildColorOption(context, Colors.red, selectedColor, () {
-                        setStateDialog(() {
-                          selectedColor = Colors.red;
-                        });
-                      }),
-                      _buildColorOption(context, Colors.green, selectedColor,
-                          () {
-                        setStateDialog(() {
-                          selectedColor = Colors.green;
-                        });
-                      }),
-                      _buildColorOption(context, Colors.orange, selectedColor,
-                          () {
-                        setStateDialog(() {
-                          selectedColor = Colors.orange;
-                        });
-                      }),
-                      _buildColorOption(
-                          context, Color(0xFF7E60BF), selectedColor, () {
-                        setStateDialog(() {
-                          selectedColor = Color(0xFF7E60BF);
-                        });
-                      }),
-                    ],
-                  ),
-                ],
+                    SizedBox(height: 8),
+                    TextField(
+                      controller: nameController,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText:
+                            'Nhập tên tùy chỉnh (tối đa ${maxNameLength} ký tự)',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        counterText:
+                            "${nameController.text.length}/${maxNameLength}",
+                      ),
+                      maxLength: maxNameLength,
+                      onChanged: (text) {
+                        setStateDialog(() {});
+                      },
+                    ),
+                    SizedBox(height: 20),
+                    Text(
+                      "Chọn Màu:",
+                      style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                          fontWeight: FontWeight.w500),
+                    ),
+                    SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildColorOption(context, Colors.blue, selectedColor,
+                            () {
+                          setStateDialog(() {
+                            selectedColor = Colors.blue;
+                          });
+                        }),
+                        _buildColorOption(context, Colors.red, selectedColor,
+                            () {
+                          setStateDialog(() {
+                            selectedColor = Colors.red;
+                          });
+                        }),
+                        _buildColorOption(context, Colors.green, selectedColor,
+                            () {
+                          setStateDialog(() {
+                            selectedColor = Colors.green;
+                          });
+                        }),
+                        _buildColorOption(context, Colors.orange, selectedColor,
+                            () {
+                          setStateDialog(() {
+                            selectedColor = Colors.orange;
+                          });
+                        }),
+                        _buildColorOption(
+                            context, Color(0xFF7E60BF), selectedColor, () {
+                          setStateDialog(() {
+                            selectedColor = Color(0xFF7E60BF);
+                          });
+                        }),
+                      ],
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -456,17 +502,33 @@ class HomePage extends StatelessWidget {
                   onPressed: () async {
                     final newName = nameController.text.trim();
                     if (newName.isNotEmpty && user != null) {
+                      if (newName.length > maxNameLength) {
+                        // Kiểm tra mounted cho dialogContext trước khi hiển thị SnackBar từ bên trong nó
+                        if (dialogContext.mounted) {
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(
+                              content: Text(
+                                  'Tên thiết bị quá dài (tối đa ${maxNameLength} ký tự).')));
+                        }
+                        return;
+                      }
+
                       await _databaseReference
                           .child('users/${user.uid}/devices/$deviceId')
                           .update({
                         'customName': newName,
                         'color': selectedColor.value
                       });
-                      Navigator.of(dialogContext).pop();
-                    } else {
+
+                      // Sử dụng dialogContext.mounted để kiểm tra trước khi pop
+                      if (dialogContext.mounted) {
+                        Navigator.of(dialogContext).pop();
+                      }
+                    } else if (newName.isEmpty) {
                       if (dialogContext.mounted) {
                         ScaffoldMessenger.of(dialogContext).showSnackBar(
-                            SnackBar(content: Text('Tên không hợp lệ')));
+                            SnackBar(
+                                content:
+                                    Text('Tên thiết bị không được để trống.')));
                       }
                     }
                   },
@@ -523,29 +585,71 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // --- Định nghĩa màu xanh nước biển ---
+    const Color oceanBlueDark =
+        Color.fromARGB(255, 10, 139, 238); // Một màu xanh đậm
+    const Color oceanBlueMedium =
+        Color.fromARGB(255, 85, 200, 239); // Một màu xanh trung bình
+    const Color oceanBlueLight =
+        Color(0xFF48CAE4); // Một màu xanh sáng/xanh ngọc
+    const Color appBarContentColor =
+        Colors.white; // Màu cho chữ và icon trên AppBar
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Tim',
-            style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onPrimary)),
-        backgroundColor: Theme.of(context).primaryColor,
-        elevation: 1.0,
-        iconTheme:
-            IconThemeData(color: Theme.of(context).colorScheme.onPrimary),
+        backgroundColor: Colors
+            .transparent, // Luôn để transparent khi dùng flexibleSpace với gradient
+        elevation: 0, // Bỏ đổ bóng mặc định
+        scrolledUnderElevation: 3.0, // Đổ bóng nhẹ khi cuộn
+        title: Text(
+          'Tim',
+          style: GoogleFonts.nunitoSans(
+            // Font Nunito Sans khá hiện đại và dễ đọc
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+            color: appBarContentColor,
+          ),
+        ),
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: appBarContentColor),
+        actionsIconTheme:
+            const IconThemeData(color: appBarContentColor, size: 26),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(25), // Độ bo góc có thể điều chỉnh
+          ),
+        ),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                oceanBlueDark, // Bắt đầu từ màu đậm
+                oceanBlueMedium, // Chuyển qua màu trung bình
+                // oceanBlueLight, // Có thể thêm màu sáng ở cuối nếu muốn hiệu ứng rộng hơn
+              ],
+              begin: Alignment.topLeft, // Hướng gradient
+              end: Alignment.bottomRight,
+              // stops: [0.0, 0.6], // Điều chỉnh điểm dừng nếu cần
+            ),
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(25), // Phải khớp với shape của AppBar
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: oceanBlueDark.withOpacity(
+                    0.3), // Bóng màu theo màu đậm nhất của gradient
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+        ),
         actions: [
           PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert_rounded),
-            onSelected: (value) {
-              if (value == 'add_id') {
-                _showAddDeviceDialog(context);
-              } else if (value == 'scan_qr') {
-                _scanQrCode(context);
-              } else if (value == 'logout') {
-                _signOut(context);
-              }
-            },
+            icon: const Icon(Icons.more_vert_rounded),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15.0),
+            ),
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
               const PopupMenuItem<String>(
                 value: 'add_id',
@@ -572,10 +676,21 @@ class HomePage extends StatelessWidget {
                 ),
               ),
             ],
+            onSelected: (value) {
+              if (value == 'add_id') {
+                _showAddDeviceDialog(context);
+              } else if (value == 'scan_qr') {
+                _scanQrCode(context);
+              } else if (value == 'logout') {
+                _signOut(context);
+              }
+            },
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Container(
+        // ... (Phần body của bạn giữ nguyên) ...
         color: Theme.of(context).colorScheme.background,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
@@ -586,13 +701,13 @@ class HomePage extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 12.0),
                 child: Center(
                     child: Text('Bảng Điều Khiển Nhà Thông Minh',
-                        style: TextStyle(
+                        style: GoogleFonts.robotoCondensed(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: Theme.of(context).colorScheme.primary))),
               ),
               Text('Thiết bị của bạn',
-                  style: TextStyle(
+                  style: GoogleFonts.openSans(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
                       color: Theme.of(context).textTheme.titleMedium?.color)),
@@ -601,6 +716,7 @@ class HomePage extends StatelessWidget {
                 child: StreamBuilder<DatabaseEvent>(
                   stream: _getDevices(),
                   builder: (context, snapshot) {
+                    // ... (Phần GridView của bạn giữ nguyên) ...
                     if (snapshot.hasError) {
                       return Center(child: Text('Lỗi: ${snapshot.error}'));
                     }
@@ -632,10 +748,11 @@ class HomePage extends StatelessWidget {
                     final deviceKeys = devicesMap.keys.toList();
 
                     return GridView.builder(
+                      padding: const EdgeInsets.only(
+                          top: 8.0, bottom: 16.0), // Thêm padding cho GridView
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
-                          childAspectRatio:
-                              1.05, // Adjusted to give slightly more height
+                          childAspectRatio: 1,
                           crossAxisSpacing: 16,
                           mainAxisSpacing: 16),
                       itemCount: deviceKeys.length,
@@ -683,84 +800,124 @@ class HomePage extends StatelessWidget {
                           onLongPress: () => _showEditDialog(
                               context, deviceId, customName, color),
                           child: Card(
-                            elevation: isActive ? 5.0 : 2.0,
+                            elevation: isActive
+                                ? 6.0
+                                : 2.5, // Tăng nhẹ elevation khi active
                             shadowColor: isActive
-                                ? color.withOpacity(0.4)
-                                : Colors.grey.withOpacity(0.25),
+                                ? color
+                                    .withOpacity(0.5) // Bóng rõ hơn khi active
+                                : Colors.grey.withOpacity(0.3),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18.0)),
-                            color:
-                                isActive ? color : Theme.of(context).cardColor,
+                                borderRadius: BorderRadius.circular(
+                                    20.0)), // Bo góc lớn hơn một chút
+                            color: isActive
+                                ? color
+                                : Theme.of(context).cardColor.withOpacity(
+                                    0.85), // Nền mờ hơn khi inactive
                             child: Stack(
                               children: [
                                 Padding(
-                                  padding: const EdgeInsets.all(8.0),
+                                  padding: const EdgeInsets.all(
+                                      12.0), // Tăng padding tổng thể cho Card
                                   child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisAlignment: MainAxisAlignment
+                                        .center, // Căn giữa các phần tử chính
                                     crossAxisAlignment:
                                         CrossAxisAlignment.center,
                                     children: [
                                       Container(
-                                        padding:
-                                            EdgeInsets.all(isActive ? 9 : 7),
+                                        padding: EdgeInsets.all(isActive
+                                            ? 12
+                                            : 10), // Padding lớn hơn cho icon
                                         decoration: BoxDecoration(
                                           color: isActive
-                                              ? Colors.white.withOpacity(0.2)
-                                              : color.withOpacity(0.1),
+                                              ? Colors.white.withOpacity(
+                                                  0.25) // Nền icon sáng hơn
+                                              : color.withOpacity(0.15),
                                           shape: BoxShape.circle,
                                         ),
                                         child: Icon(deviceIcon,
-                                            size: isActive ? 40 : 36,
+                                            size: isActive
+                                                ? 44
+                                                : 40, // Icon lớn hơn
                                             color: isActive
                                                 ? Colors.white
-                                                : color),
+                                                : color.computeLuminance() > 0.5
+                                                    ? Colors.black87
+                                                    : Colors.white70
+                                            // Đảm bảo icon luôn có màu tương phản tốt
+                                            ),
                                       ),
-                                      SizedBox(height: 6),
-                                      Text(customName,
-                                          textAlign: TextAlign.center,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              height: 1.15,
-                                              color: isActive
-                                                  ? Colors.white
-                                                  : Theme.of(context)
-                                                      .textTheme
-                                                      .titleMedium
-                                                      ?.color)),
-                                      SizedBox(height: 1),
+                                      const SizedBox(
+                                          height: 10), // Tăng khoảng cách
                                       Text(
-                                        isActive ? "Hoạt động" : "Ngoại tuyến",
-                                        style: TextStyle(
-                                          fontSize: 9.5,
+                                        customName,
+                                        textAlign: TextAlign.center,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: GoogleFonts.openSans(
+                                            // Sử dụng GoogleFonts
+                                            fontSize:
+                                                14.5, // Tên thiết bị lớn hơn một chút
+                                            fontWeight: FontWeight.w600,
+                                            height: 1.2,
+                                            color: isActive
+                                                ? Colors.white
+                                                : Theme.of(context)
+                                                    .textTheme
+                                                    .titleMedium
+                                                    ?.color),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        isActive
+                                            ? "Đang hoạt động"
+                                            : "Ngoại tuyến", // Rõ ràng hơn
+                                        style: GoogleFonts.mulish(
+                                          // Font khác cho trạng thái
+                                          fontSize:
+                                              11, // Trạng thái nhỏ hơn một chút
+                                          fontWeight: FontWeight.w500,
                                           color: isActive
-                                              ? Colors.white.withOpacity(0.75)
-                                              : Colors.grey.shade500,
+                                              ? Colors.white.withOpacity(0.85)
+                                              : Colors.grey.shade600,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
                                 Positioned(
-                                  top: 4,
-                                  right: 4,
-                                  child: InkWell(
-                                    onTap: () => _showDeleteConfirmationDialog(
-                                        context, deviceId, customName),
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Container(
-                                      padding: EdgeInsets.all(2.0),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.2),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(Icons.close_rounded,
+                                  top: 0, // Đặt sát góc trên
+                                  right: 0, // Đặt sát góc trên
+                                  child: Material(
+                                    // Thêm Material để InkWell có hiệu ứng ripple
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: () =>
+                                          _showDeleteConfirmationDialog(
+                                              context, deviceId, customName),
+                                      borderRadius: const BorderRadius.only(
+                                          // Bo góc cho vùng chạm
+                                          topRight: Radius.circular(
+                                              20.0), // Khớp với bo góc Card
+                                          bottomLeft: Radius.circular(
+                                              12.0) // Bo góc chéo tạo điểm nhấn
+                                          ),
+                                      splashColor: Colors.red.withOpacity(0.3),
+                                      highlightColor:
+                                          Colors.red.withOpacity(0.1),
+                                      child: Padding(
+                                        // Tăng vùng chạm cho nút xóa
+                                        padding: const EdgeInsets.all(
+                                            8.0), // Padding lớn hơn
+                                        child: Icon(
+                                          Icons.close_rounded,
                                           color: isActive
-                                              ? Colors.white.withOpacity(0.7)
-                                              : Colors.grey[600],
-                                          size: 14),
+                                              ? Colors.white.withOpacity(0.8)
+                                              : Colors.grey.shade700,
+                                          size: 20, // Icon xóa lớn hơn
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 )
@@ -1052,72 +1209,96 @@ class __DeviceControlSheetContentState
     );
   }
 
-  Widget _buildCuaCuonSkeleton() {
-    double buttonWidth = MediaQuery.of(context).size.width * 0.38;
-    double buttonHeight = 75;
-    double stopButtonHeight = 55;
-    double stopButtonWidth = MediaQuery.of(context).size.width * 0.55;
+// Located in __DeviceControlSheetContentState within lib/home_page.dart
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+  Widget _buildCuaCuonSkeleton() {
+    // Title placeholder font size should match the default of _buildTitlePlaceholder used in actual content
+    double titlePlaceholderFontSize = 22;
+
+    // Dimensions for "Up" and "Down" button placeholders
+    // These match the `_buildCuaCuonButton`'s container
+    double upDownButtonHeight = 75;
+    // Width is calculated dynamically in _buildCuaCuonButton,
+    // for skeleton we can use a similar proportion or a fixed sensible width.
+    // Using MediaQuery here for width makes sense if actual buttons also scale with screen width.
+    // The actual _buildCuaCuonButton uses `MediaQuery.of(context).size.width * 0.38;`
+    double upDownButtonWidth = MediaQuery.of(context).size.width * 0.38;
+
+    // Dimensions for "Stop" button placeholder (ElevatedButton.icon)
+    // Actual button padding: EdgeInsets.symmetric(horizontal: 60, vertical: 22)
+    // Actual icon size: 34
+    // Estimated height: 34 (icon) + 22 (top pad) + 22 (bottom pad) = 78px
+    double stopButtonPlaceholderHeight = 78;
+    // Actual width is intrinsic. Let's use a representative fixed width for the skeleton.
+    // (Icon + Label + Horizontal Padding). (e.g., 34 + ~60 + 120 = ~214)
+    double stopButtonPlaceholderWidth = 220;
+
+    return SingleChildScrollView(
+      key: ValueKey(
+          'CuaCuonSkeletonScrollContainer-${widget.deviceId}'), // Key for the scroll view
+      padding: const EdgeInsets.symmetric(
+          horizontal: 16.0,
+          vertical: 10.0), // Matches actual content's scroll view padding
       child: Column(
-        key: ValueKey('CuaCuonSkeletonScroll-${widget.deviceId}'),
+        key: ValueKey(
+            'CuaCuonSkeletonColumn-${widget.deviceId}'), // Key for the inner column
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _buildTitlePlaceholder(isActuallyLoading: true, fontSize: 20),
-          SizedBox(height: 25),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            _buildPlaceholderContainer(buttonHeight,
-                width: buttonWidth, radius: 20, color: Colors.grey.shade300),
-            SizedBox(width: 16),
-            _buildPlaceholderContainer(buttonHeight,
-                width: buttonWidth, radius: 20, color: Colors.grey.shade300),
-          ]),
-          SizedBox(height: 25),
-          _buildPlaceholderContainer(stopButtonHeight,
-              width: stopButtonWidth, radius: 20, color: Colors.grey.shade300),
-          SizedBox(height: 13),
+          _buildTitlePlaceholder(
+              isActuallyLoading: true,
+              fontSize: titlePlaceholderFontSize), // Matched actual title size
+          const SizedBox(height: 25), // Matches actual content
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildPlaceholderContainer(upDownButtonHeight,
+                  width: upDownButtonWidth,
+                  radius: 20, // Matches actual button's BorderRadius
+                  color: Colors.grey[300]),
+              const SizedBox(width: 16), // Matches actual content
+              _buildPlaceholderContainer(upDownButtonHeight,
+                  width: upDownButtonWidth,
+                  radius: 20, // Matches actual button's BorderRadius
+                  color: Colors.grey[300]),
+            ],
+          ),
+          const SizedBox(height: 25), // Matches actual content
+          _buildPlaceholderContainer(stopButtonPlaceholderHeight,
+              width: stopButtonPlaceholderWidth,
+              radius: 20, // Matches actual button's BorderRadius
+              color: Colors.grey[300]),
+          const SizedBox(
+              height: 14), // Matches actual content (was 13, corrected to 14)
         ],
       ),
     );
   }
-
-// Hàm helper để tạo Card cho skeleton, giờ đây chấp nhận child
-  Widget _buildSkeletonCard(double height,
-      {Widget? child, // Thêm tham số child ở đây
-      EdgeInsetsGeometry? margin,
-      double radius = 18.0,
-      Color? cardColor}) {
-    return Card(
-      elevation: 1.5,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
-      margin: margin ?? EdgeInsets.symmetric(horizontal: 4.0, vertical: 6.0),
-      color: cardColor ??
-          Theme.of(context).cardTheme.color ??
-          const Color(0xFFFAFAFA),
-      child: child ??
-          SizedBox(
-              // Sử dụng child ở đây, hoặc SizedBox nếu child là null
-              height: height,
-              width: double.infinity),
-    );
-  }
+// Located in __DeviceControlSheetContentState within lib/home_page.dart
 
   Widget _buildCamBienNhietDoAmSkeleton() {
-    double titleFontSize = 18;
+    double titleFontSize = 22;
+    double sectionTitleFontSize = 19;
+    double cardTitleFontSize = 18;
+    double regularTextFontSize = 16;
+    double smallTextFontSize = 11.5;
+    double lineSpacing = 8;
+    double cardInnerPaddingAll = 16.0;
 
-    // Giảm nhẹ các giá trị này một chút xíu nữa để cố gắng fix 3.1px
-    double sensorCardEstimatedHeight = 76;
-    double relayItemEstimatedHeight = 80;
-    double autoWateringCardEstimatedHeight = 96;
-    double scheduleItemEstimatedHeight = 36;
-    double addScheduleButtonHeight = 26;
+    double sensorInfoLineHeight = regularTextFontSize * 1.5 + lineSpacing;
+    double switchListTileHeight = 56.0;
+    double textFormFieldHeight = 60.0;
+    double sliderHeight = 48.0;
+    double buttonHeight = 40.0;
+    double relayItemCardHeight = 120;
 
-    return Padding(
+    // Wrap the main Column with SingleChildScrollView
+    return SingleChildScrollView(
+      key: ValueKey(
+          'CamBienNhietDoAmSkeletonScroll-${widget.deviceId}'), // Optional: Add a key to the scroll view
       padding: const EdgeInsets.symmetric(
-          horizontal: 10.0, vertical: 3.0), // Giảm vertical padding
+          horizontal: 12.0,
+          vertical: 8.0), // Matched actual content's scroll view padding
       child: Column(
         key: ValueKey('CamBienNhietDoAmSkeleton-${widget.deviceId}'),
         mainAxisSize: MainAxisSize.min,
@@ -1125,147 +1306,223 @@ class __DeviceControlSheetContentState
         children: [
           _buildTitlePlaceholder(
               isActuallyLoading: true, fontSize: titleFontSize),
-          SizedBox(height: 4), // Giảm
+          const SizedBox(height: 10),
 
-          _buildSkeletonCard(sensorCardEstimatedHeight,
-              radius: 12,
-              margin:
-                  const EdgeInsets.symmetric(horizontal: 2.0, vertical: 2.0),
+          // Sensor Info Card Placeholder
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 6.0),
+            child: Card(
+              elevation: 2.0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18.0)),
               child: Padding(
-                padding: const EdgeInsets.all(10.0),
+                padding: EdgeInsets.all(cardInnerPaddingAll),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildPlaceholderContainer(titleFontSize * 0.9,
-                        width: 135, radius: 4),
-                    _buildPlaceholderContainer(titleFontSize * 0.75,
-                        width: 165, radius: 3),
-                    _buildPlaceholderContainer(titleFontSize * 0.75,
-                        width: 175, radius: 3),
-                    _buildPlaceholderContainer(titleFontSize * 0.75,
-                        width: 135, radius: 3),
+                    _buildPlaceholderContainer(cardTitleFontSize * 1.2,
+                        width: 150, radius: 4, color: Colors.grey[300]),
+                    SizedBox(height: 12),
+                    _buildPlaceholderContainer(regularTextFontSize * 1.2,
+                        width: 200, radius: 3, color: Colors.grey[300]),
+                    SizedBox(height: lineSpacing),
+                    _buildPlaceholderContainer(regularTextFontSize * 1.2,
+                        width: 220, radius: 3, color: Colors.grey[300]),
+                    SizedBox(height: lineSpacing),
+                    _buildPlaceholderContainer(regularTextFontSize * 1.2,
+                        width: 180, radius: 3, color: Colors.grey[300]),
                   ],
                 ),
-              )),
-          SizedBox(height: 5), // Giảm
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6.0),
-            child: _buildPlaceholderContainer(titleFontSize * 1.0,
-                width: 115, radius: 4),
+              ),
+            ),
           ),
-          SizedBox(height: 5), // Giảm
+          const SizedBox(height: 15),
 
-          GridView.count(
-            shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            mainAxisSpacing: 5, // Giảm
-            crossAxisSpacing: 5, // Giảm
-            childAspectRatio:
-                ((MediaQuery.of(context).size.width - 20 - 4 - 5) / 2) /
-                    relayItemEstimatedHeight,
-            padding: const EdgeInsets.symmetric(horizontal: 2.0),
-            children: List.generate(4, (index) {
-              return _buildSkeletonCard(relayItemEstimatedHeight,
-                  radius: 14,
+          // Relay Title Placeholder
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: _buildPlaceholderContainer(sectionTitleFontSize * 1.2,
+                width: 130, radius: 4, color: Colors.grey[300]),
+          ),
+          const SizedBox(height: 15),
+
+          // Relay GridView Placeholder
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: GridView.count(
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 1.1,
+              children: List.generate(4, (index) {
+                return Card(
+                  elevation: 2.0,
+                  margin: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24)),
+                  color: Theme.of(context)
+                      .cardColor, // Use cardColor for skeleton items
                   child: Padding(
-                    padding: const EdgeInsets.all(8.0),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12.0, vertical: 16.0),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildPlaceholderContainer(22,
-                                width: 22, radius: 11), // Giảm
-                            _buildPlaceholderContainer(15,
-                                width: 36, radius: 8), // Giảm
+                            _buildPlaceholderContainer(36,
+                                width: 36, radius: 18, color: Colors.grey[200]),
+                            _buildPlaceholderContainer(20,
+                                width: 45, radius: 10, color: Colors.grey[200]),
                           ],
                         ),
+                        SizedBox(height: 8),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildPlaceholderContainer(11,
-                                width: 65, radius: 3), // Giảm
+                            _buildPlaceholderContainer(15 * 1.2,
+                                width: 80, radius: 3, color: Colors.grey[200]),
                             SizedBox(height: 3),
-                            _buildPlaceholderContainer(9,
-                                width: 45, radius: 3), // Giảm
+                            _buildPlaceholderContainer(smallTextFontSize * 1.2,
+                                width: 60, radius: 3, color: Colors.grey[200]),
                           ],
                         )
                       ],
                     ),
-                  ));
-            }),
+                  ),
+                );
+              }),
+            ),
           ),
-          SizedBox(height: 5), // Giảm
+          // Use a SizedBox to represent the Divider's space, or a thin placeholder
+          SizedBox(
+              height:
+                  30), // Approximation for Divider height (default is 16, but your content uses Divider(height:30))
 
+          // Auto Watering Title Placeholder
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6.0),
-            child: _buildPlaceholderContainer(titleFontSize * 1.0,
-                width: 145, radius: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: _buildPlaceholderContainer(sectionTitleFontSize * 1.2,
+                width: 150, radius: 4, color: Colors.grey[300]),
           ),
-          SizedBox(height: 4), // Giảm
+          SizedBox(height: 10),
 
-          _buildSkeletonCard(autoWateringCardEstimatedHeight,
-              radius: 12,
-              margin: EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+          // Auto Watering Card Placeholder
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 4.0),
+            child: Card(
+              elevation: 2.0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18.0)),
               child: Padding(
-                padding: const EdgeInsets.all(10.0),
+                padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildPlaceholderContainer(15,
-                            width: 165, radius: 4), // Giảm
-                        _buildPlaceholderContainer(15,
-                            width: 36, radius: 8), // Giảm
-                      ],
-                    ),
-                    _buildPlaceholderContainer(11,
-                        width: 185, radius: 3), // Giảm
-                    _buildPlaceholderContainer(15,
-                        radius: 4), // Slider (giảm chiều cao)
+                    // Approximating SwitchListTile
+                    Row(children: [
+                      Expanded(
+                          child: _buildPlaceholderContainer(
+                              regularTextFontSize * 1.2,
+                              width: double.infinity,
+                              radius: 4,
+                              color: Colors.grey[300])),
+                      SizedBox(width: 8),
+                      _buildPlaceholderContainer(20,
+                          width: 45, radius: 10, color: Colors.grey[300])
+                    ]),
+                    SizedBox(height: 16),
+                    _buildPlaceholderContainer(regularTextFontSize * 1.2,
+                        width: 200, radius: 3, color: Colors.grey[300]),
+                    SizedBox(height: 8),
+                    _buildPlaceholderContainer(sliderHeight - 28,
+                        width: double.infinity,
+                        radius: 4,
+                        color: Colors.grey[300]), // Simplified slider
+                    SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
-                            child: _buildPlaceholderContainer(31,
-                                radius: 6)), // Giảm
-                        SizedBox(width: 6),
+                            child: _buildPlaceholderContainer(
+                                textFormFieldHeight - 28,
+                                radius: 6,
+                                color: Colors.grey[300])),
+                        SizedBox(width: 12),
                         Expanded(
-                            child: _buildPlaceholderContainer(31,
-                                radius: 6)), // Giảm
+                            child: _buildPlaceholderContainer(
+                                textFormFieldHeight - 28,
+                                radius: 6,
+                                color: Colors.grey[300])),
                       ],
                     )
                   ],
                 ),
-              )),
-          SizedBox(height: 4), // Giảm
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6.0),
-            child: _buildPlaceholderContainer(titleFontSize * 1.0,
-                width: 165, radius: 4),
-          ),
-          SizedBox(height: 3), // Giảm
-          _buildSkeletonCard(scheduleItemEstimatedHeight,
-              radius: 10,
-              margin: EdgeInsets.symmetric(vertical: 2, horizontal: 2)),
-          SizedBox(height: 3), // Giảm
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 6.0),
-              child: _buildPlaceholderContainer(addScheduleButtonHeight,
-                  width: 105, radius: 14), // Giảm
+              ),
             ),
           ),
-          // SizedBox(height: 2), // Bỏ SizedBox cuối cùng để cố gắng fix 3.1px tràn
+          SizedBox(
+              height:
+                  25), // Approximation for Divider height (default is 16, content uses Divider(height:25))
+
+          // Scheduled Watering Title + Switch Placeholder
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildPlaceholderContainer(cardTitleFontSize * 1.2,
+                    width: 180, radius: 4, color: Colors.grey[300]),
+                _buildPlaceholderContainer(20,
+                    width: 45, radius: 10, color: Colors.grey[300]),
+              ],
+            ),
+          ),
+          SizedBox(height: 6.0),
+
+          // Placeholder for one schedule item
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+            child: Card(
+              elevation: 1.0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14.0)),
+              color: Theme.of(context).cardColor, // Use cardColor
+              child: SizedBox(
+                  height: 70,
+                  width: double.infinity,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildPlaceholderContainer(18 * 1.2,
+                            width: 100, radius: 3, color: Colors.grey[200]),
+                        SizedBox(height: 4),
+                        _buildPlaceholderContainer(13 * 1.2,
+                            width: 150, radius: 3, color: Colors.grey[200]),
+                      ],
+                    ),
+                  )),
+            ),
+          ),
+          SizedBox(height: 6.0),
+
+          // Add Schedule Button Placeholder
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0, bottom: 8.0),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _buildPlaceholderContainer(buttonHeight,
+                  width: 150, radius: 12, color: Colors.grey[300]),
+            ),
+          ),
+          const SizedBox(height: 10),
         ],
       ),
     );

@@ -38,9 +38,9 @@ dependencies:
     firebase_database: ^11.1.0
     firebase_auth: ^5.2.0
     cloud_firestore: ^5.3.0
-    google_fonts: ^2.1.0
+    google_fonts: ^6.2.1 # Hoặc phiên bản mới hơn
     adaptive_dialog: ^1.1.0
-    font_awesome_flutter: ^9.1.0
+    font_awesome_flutter: ^10.7.0 # Kiểm tra phiên bản mới nhất trên pub.dev
     chart_sparkline: ^1.0.5
     google_sign_in: ^6.2.1
     flutter_riverpod: ^2.5.3
