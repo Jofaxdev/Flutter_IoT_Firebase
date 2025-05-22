@@ -145,7 +145,8 @@ class _LoginPageState extends State<LoginPage>
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: ButtonColor,
-                  padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 50, vertical: 16),
                   textStyle: const TextStyle(fontSize: 18),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),

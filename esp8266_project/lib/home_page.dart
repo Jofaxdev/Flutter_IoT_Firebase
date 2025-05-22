@@ -163,37 +163,60 @@ class HomePage extends StatelessWidget {
       Map<String, dynamic> initialGlobalDataForDeviceUpdate = {};
 
       if (deviceId.startsWith('CamBienNhietDoAm')) {
-        Map<String, dynamic> autoWateringStructure = {
+        // This structure assumes the new Firebase layout with a general 'autoWateringEnabled'
+        // and then separate 'moistureBasedWatering' and 'scheduledWatering' objects.
+        Map<String, dynamic> defaultMoistureBased = {
           "enabled": false,
-          "soilMoistureThreshold": 50,
           "pumpDurationWhenDry": 30,
-          "scheduledWatering": {"enabled": false, "schedules": {}}
+          "soilMoistureThreshold": 50
+        };
+        Map<String, dynamic> defaultScheduled = {
+          "enabled": false,
+          "schedules": {}
         };
 
         Map<dynamic, dynamic> currentGlobalDeviceData =
-            globalDeviceSnapshotEvent.snapshot.value as Map<dynamic, dynamic>;
+            globalDeviceSnapshotEvent.snapshot.value
+                    as Map<dynamic, dynamic>? ??
+                {};
 
-        if (currentGlobalDeviceData['autoWatering'] == null) {
-          initialGlobalDataForDeviceUpdate['autoWatering'] =
-              autoWateringStructure;
+        if (currentGlobalDeviceData['autoWateringEnabled'] == null) {
+          initialGlobalDataForDeviceUpdate['autoWateringEnabled'] = false;
+        }
+
+        if (currentGlobalDeviceData['moistureBasedWatering'] == null) {
+          initialGlobalDataForDeviceUpdate['moistureBasedWatering'] =
+              defaultMoistureBased;
         } else {
-          Map<dynamic, dynamic> currentAutoWateringData =
-              currentGlobalDeviceData['autoWatering'] as Map<dynamic, dynamic>;
-          if (currentAutoWateringData['pumpDurationWhenDry'] == null) {
+          Map<dynamic, dynamic> currentMoistureData =
+              currentGlobalDeviceData['moistureBasedWatering']
+                      as Map<dynamic, dynamic>? ??
+                  {};
+          if (currentMoistureData['enabled'] == null)
+            initialGlobalDataForDeviceUpdate['moistureBasedWatering/enabled'] =
+                false;
+          if (currentMoistureData['pumpDurationWhenDry'] == null)
             initialGlobalDataForDeviceUpdate[
-                'autoWatering/pumpDurationWhenDry'] = 30;
-          }
-          if (currentAutoWateringData['enabled'] == null) {
-            initialGlobalDataForDeviceUpdate['autoWatering/enabled'] = false;
-          }
-          if (currentAutoWateringData['soilMoistureThreshold'] == null) {
+                'moistureBasedWatering/pumpDurationWhenDry'] = 30;
+          if (currentMoistureData['soilMoistureThreshold'] == null)
             initialGlobalDataForDeviceUpdate[
-                'autoWatering/soilMoistureThreshold'] = 50;
-          }
-          if (currentAutoWateringData['scheduledWatering'] == null) {
-            initialGlobalDataForDeviceUpdate['autoWatering/scheduledWatering'] =
-                {"enabled": false, "schedules": {}};
-          }
+                'moistureBasedWatering/soilMoistureThreshold'] = 50;
+        }
+
+        if (currentGlobalDeviceData['scheduledWatering'] == null) {
+          initialGlobalDataForDeviceUpdate['scheduledWatering'] =
+              defaultScheduled;
+        } else {
+          Map<dynamic, dynamic> currentScheduledData =
+              currentGlobalDeviceData['scheduledWatering']
+                      as Map<dynamic, dynamic>? ??
+                  {};
+          if (currentScheduledData['enabled'] == null)
+            initialGlobalDataForDeviceUpdate['scheduledWatering/enabled'] =
+                false;
+          if (currentScheduledData['schedules'] == null)
+            initialGlobalDataForDeviceUpdate['scheduledWatering/schedules'] =
+                {};
         }
       }
 
@@ -381,8 +404,6 @@ class HomePage extends StatelessWidget {
     );
   }
 
-// Bên trong class HomePage
-
   void _showEditDialog(BuildContext context, String deviceId,
       String currentCustomName, Color currentColor) {
     final TextEditingController nameController =
@@ -394,7 +415,6 @@ class HomePage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
-        // Đây là context của dialog
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setStateDialog) {
             return AlertDialog(
@@ -503,7 +523,6 @@ class HomePage extends StatelessWidget {
                     final newName = nameController.text.trim();
                     if (newName.isNotEmpty && user != null) {
                       if (newName.length > maxNameLength) {
-                        // Kiểm tra mounted cho dialogContext trước khi hiển thị SnackBar từ bên trong nó
                         if (dialogContext.mounted) {
                           ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(
                               content: Text(
@@ -519,7 +538,6 @@ class HomePage extends StatelessWidget {
                         'color': selectedColor.value
                       });
 
-                      // Sử dụng dialogContext.mounted để kiểm tra trước khi pop
                       if (dialogContext.mounted) {
                         Navigator.of(dialogContext).pop();
                       }
@@ -585,26 +603,18 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // --- Định nghĩa màu xanh nước biển ---
-    const Color oceanBlueDark =
-        Color.fromARGB(255, 10, 139, 238); // Một màu xanh đậm
-    const Color oceanBlueMedium =
-        Color.fromARGB(255, 85, 200, 239); // Một màu xanh trung bình
-    const Color oceanBlueLight =
-        Color(0xFF48CAE4); // Một màu xanh sáng/xanh ngọc
-    const Color appBarContentColor =
-        Colors.white; // Màu cho chữ và icon trên AppBar
+    const Color oceanBlueDark = Color.fromARGB(255, 10, 139, 238);
+    const Color oceanBlueMedium = Color.fromARGB(255, 85, 200, 239);
+    const Color appBarContentColor = Colors.white;
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors
-            .transparent, // Luôn để transparent khi dùng flexibleSpace với gradient
-        elevation: 0, // Bỏ đổ bóng mặc định
-        scrolledUnderElevation: 3.0, // Đổ bóng nhẹ khi cuộn
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 3.0,
         title: Text(
           'Tim',
           style: GoogleFonts.nunitoSans(
-            // Font Nunito Sans khá hiện đại và dễ đọc
             fontSize: 26,
             fontWeight: FontWeight.bold,
             color: appBarContentColor,
@@ -616,28 +626,25 @@ class HomePage extends StatelessWidget {
             const IconThemeData(color: appBarContentColor, size: 26),
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
-            bottom: Radius.circular(25), // Độ bo góc có thể điều chỉnh
+            bottom: Radius.circular(25),
           ),
         ),
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                oceanBlueDark, // Bắt đầu từ màu đậm
-                oceanBlueMedium, // Chuyển qua màu trung bình
-                // oceanBlueLight, // Có thể thêm màu sáng ở cuối nếu muốn hiệu ứng rộng hơn
+                oceanBlueDark,
+                oceanBlueMedium,
               ],
-              begin: Alignment.topLeft, // Hướng gradient
+              begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              // stops: [0.0, 0.6], // Điều chỉnh điểm dừng nếu cần
             ),
             borderRadius: const BorderRadius.vertical(
-              bottom: Radius.circular(25), // Phải khớp với shape của AppBar
+              bottom: Radius.circular(25),
             ),
             boxShadow: [
               BoxShadow(
-                color: oceanBlueDark.withOpacity(
-                    0.3), // Bóng màu theo màu đậm nhất của gradient
+                color: oceanBlueDark.withOpacity(0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -690,7 +697,6 @@ class HomePage extends StatelessWidget {
         ],
       ),
       body: Container(
-        // ... (Phần body của bạn giữ nguyên) ...
         color: Theme.of(context).colorScheme.background,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
@@ -716,7 +722,6 @@ class HomePage extends StatelessWidget {
                 child: StreamBuilder<DatabaseEvent>(
                   stream: _getDevices(),
                   builder: (context, snapshot) {
-                    // ... (Phần GridView của bạn giữ nguyên) ...
                     if (snapshot.hasError) {
                       return Center(child: Text('Lỗi: ${snapshot.error}'));
                     }
@@ -748,8 +753,7 @@ class HomePage extends StatelessWidget {
                     final deviceKeys = devicesMap.keys.toList();
 
                     return GridView.builder(
-                      padding: const EdgeInsets.only(
-                          top: 8.0, bottom: 16.0), // Thêm padding cho GridView
+                      padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
                           childAspectRatio: 1,
@@ -800,65 +804,49 @@ class HomePage extends StatelessWidget {
                           onLongPress: () => _showEditDialog(
                               context, deviceId, customName, color),
                           child: Card(
-                            elevation: isActive
-                                ? 6.0
-                                : 2.5, // Tăng nhẹ elevation khi active
+                            elevation: isActive ? 6.0 : 2.5,
                             shadowColor: isActive
-                                ? color
-                                    .withOpacity(0.5) // Bóng rõ hơn khi active
+                                ? color.withOpacity(0.5)
                                 : Colors.grey.withOpacity(0.3),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                    20.0)), // Bo góc lớn hơn một chút
+                                borderRadius: BorderRadius.circular(20.0)),
                             color: isActive
                                 ? color
-                                : Theme.of(context).cardColor.withOpacity(
-                                    0.85), // Nền mờ hơn khi inactive
+                                : Theme.of(context).cardColor.withOpacity(0.85),
                             child: Stack(
                               children: [
                                 Padding(
-                                  padding: const EdgeInsets.all(
-                                      12.0), // Tăng padding tổng thể cho Card
+                                  padding: const EdgeInsets.all(12.0),
                                   child: Column(
-                                    mainAxisAlignment: MainAxisAlignment
-                                        .center, // Căn giữa các phần tử chính
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     crossAxisAlignment:
                                         CrossAxisAlignment.center,
                                     children: [
                                       Container(
-                                        padding: EdgeInsets.all(isActive
-                                            ? 12
-                                            : 10), // Padding lớn hơn cho icon
+                                        padding:
+                                            EdgeInsets.all(isActive ? 12 : 10),
                                         decoration: BoxDecoration(
                                           color: isActive
-                                              ? Colors.white.withOpacity(
-                                                  0.25) // Nền icon sáng hơn
+                                              ? Colors.white.withOpacity(0.25)
                                               : color.withOpacity(0.15),
                                           shape: BoxShape.circle,
                                         ),
                                         child: Icon(deviceIcon,
-                                            size: isActive
-                                                ? 44
-                                                : 40, // Icon lớn hơn
+                                            size: isActive ? 44 : 40,
                                             color: isActive
                                                 ? Colors.white
                                                 : color.computeLuminance() > 0.5
                                                     ? Colors.black87
-                                                    : Colors.white70
-                                            // Đảm bảo icon luôn có màu tương phản tốt
-                                            ),
+                                                    : Colors.white70),
                                       ),
-                                      const SizedBox(
-                                          height: 10), // Tăng khoảng cách
+                                      const SizedBox(height: 10),
                                       Text(
                                         customName,
                                         textAlign: TextAlign.center,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: GoogleFonts.openSans(
-                                            // Sử dụng GoogleFonts
-                                            fontSize:
-                                                14.5, // Tên thiết bị lớn hơn một chút
+                                            fontSize: 14.5,
                                             fontWeight: FontWeight.w600,
                                             height: 1.2,
                                             color: isActive
@@ -872,11 +860,9 @@ class HomePage extends StatelessWidget {
                                       Text(
                                         isActive
                                             ? "Đang hoạt động"
-                                            : "Ngoại tuyến", // Rõ ràng hơn
+                                            : "Ngoại tuyến",
                                         style: GoogleFonts.mulish(
-                                          // Font khác cho trạng thái
-                                          fontSize:
-                                              11, // Trạng thái nhỏ hơn một chút
+                                          fontSize: 11,
                                           fontWeight: FontWeight.w500,
                                           color: isActive
                                               ? Colors.white.withOpacity(0.85)
@@ -887,35 +873,28 @@ class HomePage extends StatelessWidget {
                                   ),
                                 ),
                                 Positioned(
-                                  top: 0, // Đặt sát góc trên
-                                  right: 0, // Đặt sát góc trên
+                                  top: 0,
+                                  right: 0,
                                   child: Material(
-                                    // Thêm Material để InkWell có hiệu ứng ripple
                                     color: Colors.transparent,
                                     child: InkWell(
                                       onTap: () =>
                                           _showDeleteConfirmationDialog(
                                               context, deviceId, customName),
                                       borderRadius: const BorderRadius.only(
-                                          // Bo góc cho vùng chạm
-                                          topRight: Radius.circular(
-                                              20.0), // Khớp với bo góc Card
-                                          bottomLeft: Radius.circular(
-                                              12.0) // Bo góc chéo tạo điểm nhấn
-                                          ),
+                                          topRight: Radius.circular(20.0),
+                                          bottomLeft: Radius.circular(12.0)),
                                       splashColor: Colors.red.withOpacity(0.3),
                                       highlightColor:
                                           Colors.red.withOpacity(0.1),
                                       child: Padding(
-                                        // Tăng vùng chạm cho nút xóa
-                                        padding: const EdgeInsets.all(
-                                            8.0), // Padding lớn hơn
+                                        padding: const EdgeInsets.all(8.0),
                                         child: Icon(
                                           Icons.close_rounded,
                                           color: isActive
                                               ? Colors.white.withOpacity(0.8)
                                               : Colors.grey.shade700,
-                                          size: 20, // Icon xóa lớn hơn
+                                          size: 20,
                                         ),
                                       ),
                                     ),
@@ -938,7 +917,6 @@ class HomePage extends StatelessWidget {
   }
 }
 
-// End of Part 1
 class _DeviceControlSheetContent extends StatefulWidget {
   final String deviceId;
   final String customName;
@@ -967,10 +945,15 @@ class __DeviceControlSheetContentState
   bool _isLoading = true;
   String? _error;
   StreamSubscription<DatabaseEvent>? _dataSubscription;
-  TextEditingController? _soilMoistureThresholdController;
-  TextEditingController? _autoPumpDurationController;
-  double _sliderValue = 50.0;
-  int _autoPumpDurationSeconds = 30;
+
+  // For Moisture-based watering
+  TextEditingController? _moistureThresholdController;
+  TextEditingController? _moisturePumpDurationController;
+  double _moistureSliderValue = 50.0;
+  bool _moistureBasedEnabled = false;
+
+  // For Scheduled watering
+  bool _scheduledWateringEnabled = false;
 
   final List<Map<String, dynamic>> _sensorRelaysInfo = [
     {
@@ -984,20 +967,12 @@ class __DeviceControlSheetContentState
       'name': 'Máy phun sương',
       'icon': Icons.water_drop_outlined
     },
-    {
-      'key': 'water_pump',
-      'name': 'Bơm tưới nước',
-      'icon': Icons.water_outlined
-    },
+    {'key': 'water_pump', 'name': 'Bơm Chính', 'icon': Icons.water_outlined},
   ];
 
   @override
   void initState() {
     super.initState();
-    _soilMoistureThresholdController =
-        TextEditingController(text: _sliderValue.round().toString());
-    _autoPumpDurationController =
-        TextEditingController(text: _autoPumpDurationSeconds.toString());
     _listenToDeviceData();
   }
 
@@ -1020,46 +995,57 @@ class __DeviceControlSheetContentState
           if (event.snapshot.value != null && event.snapshot.value is Map) {
             _deviceData =
                 Map<dynamic, dynamic>.from(event.snapshot.value as Map);
+
             if (widget.deviceId.startsWith('CamBienNhietDoAm')) {
-              final autoWateringData =
-                  _deviceData?['autoWatering'] as Map<dynamic, dynamic>? ?? {};
+              // Moisture-based watering data from 'devices/DEVICE_ID/moistureBasedWatering/'
+              final moistureData = _deviceData?['moistureBasedWatering']
+                      as Map<dynamic, dynamic>? ??
+                  {};
+              _moistureBasedEnabled = moistureData['enabled'] as bool? ?? false;
 
-              dynamic rawThreshold = autoWateringData['soilMoistureThreshold'];
-              int currentThresholdInt = 50;
-              if (rawThreshold is int) {
-                currentThresholdInt = rawThreshold;
-              } else if (rawThreshold is double) {
-                currentThresholdInt = rawThreshold.round();
-              } else if (rawThreshold is String) {
-                currentThresholdInt = int.tryParse(rawThreshold) ?? 50;
+              dynamic rawMoistureThreshold =
+                  moistureData['soilMoistureThreshold'];
+              int currentMoistureThresholdInt = 50;
+              if (rawMoistureThreshold is int) {
+                currentMoistureThresholdInt = rawMoistureThreshold;
+              } else if (rawMoistureThreshold is double) {
+                currentMoistureThresholdInt = rawMoistureThreshold.round();
+              } else if (rawMoistureThreshold is String) {
+                currentMoistureThresholdInt =
+                    int.tryParse(rawMoistureThreshold) ?? 50;
               }
-              String currentThresholdString = currentThresholdInt.toString();
-              double currentThresholdDouble = currentThresholdInt.toDouble();
-
-              if (_soilMoistureThresholdController != null &&
-                  _soilMoistureThresholdController!.text !=
-                      currentThresholdString) {
-                _soilMoistureThresholdController!.text = currentThresholdString;
-              }
-              if (_sliderValue != currentThresholdDouble) {
-                _sliderValue = currentThresholdDouble;
+              _moistureSliderValue = currentMoistureThresholdInt.toDouble();
+              _moistureThresholdController ??= TextEditingController();
+              if (_moistureThresholdController!.text !=
+                  currentMoistureThresholdInt.toString()) {
+                _moistureThresholdController!.text =
+                    currentMoistureThresholdInt.toString();
               }
 
-              dynamic rawPumpDuration = autoWateringData['pumpDurationWhenDry'];
-              _autoPumpDurationSeconds = 30;
-              if (rawPumpDuration is int) {
-                _autoPumpDurationSeconds = rawPumpDuration;
-              } else if (rawPumpDuration is String) {
-                _autoPumpDurationSeconds = int.tryParse(rawPumpDuration) ?? 30;
-              } else if (rawPumpDuration is double) {
-                _autoPumpDurationSeconds = rawPumpDuration.toInt();
+              dynamic rawMoisturePumpDuration =
+                  moistureData['pumpDurationWhenDry'];
+              int currentMoisturePumpDuration = 30;
+              if (rawMoisturePumpDuration is int) {
+                currentMoisturePumpDuration = rawMoisturePumpDuration;
+              } else if (rawMoisturePumpDuration is String) {
+                currentMoisturePumpDuration =
+                    int.tryParse(rawMoisturePumpDuration) ?? 30;
+              } else if (rawMoisturePumpDuration is double) {
+                currentMoisturePumpDuration = rawMoisturePumpDuration.toInt();
               }
-              if (_autoPumpDurationController != null &&
-                  _autoPumpDurationController!.text !=
-                      _autoPumpDurationSeconds.toString()) {
-                _autoPumpDurationController!.text =
-                    _autoPumpDurationSeconds.toString();
+              _moisturePumpDurationController ??= TextEditingController();
+              if (_moisturePumpDurationController!.text !=
+                  currentMoisturePumpDuration.toString()) {
+                _moisturePumpDurationController!.text =
+                    currentMoisturePumpDuration.toString();
               }
+
+              // Scheduled watering data from 'devices/DEVICE_ID/scheduledWatering/'
+              final scheduledData =
+                  _deviceData?['scheduledWatering'] as Map<dynamic, dynamic>? ??
+                      {};
+              _scheduledWateringEnabled =
+                  scheduledData['enabled'] as bool? ?? false;
             }
           } else {
             _deviceData = null;
@@ -1083,28 +1069,23 @@ class __DeviceControlSheetContentState
   @override
   void dispose() {
     _dataSubscription?.cancel();
-    _soilMoistureThresholdController?.dispose();
-    _autoPumpDurationController?.dispose();
+    _moistureThresholdController?.dispose();
+    _moisturePumpDurationController?.dispose();
     super.dispose();
   }
 
   Widget _buildTitlePlaceholder(
       {bool isActuallyLoading = false, double fontSize = 22}) {
-    // Actual height of Text("Điều khiển - Cây thủy sinh") with fontSize 22, bold is ~31.
-    // Padding is EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 12.0), so vertical is 28.
-    // Total height for title part: 31 + 28 = 59.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          20.0, 16.0, 20.0, 12.0), // This makes the total height ~59px
+      padding: const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 12.0),
       child: Container(
-        // Wrapping with container to give it a fixed height for skeleton
-        height: 31, // Matching approximate text height
+        height: 31,
         alignment: Alignment.center,
         child: isActuallyLoading
             ? _buildPlaceholderContainer(fontSize * 0.8,
                 width: 200 + (widget.customName.length * 2.0),
                 radius: 6,
-                color: Colors.grey[300]!) // Placeholder text
+                color: Colors.grey[300]!)
             : Text(
                 "Điều khiển - ${widget.customName}",
                 textAlign: TextAlign.center,
@@ -1120,7 +1101,7 @@ class __DeviceControlSheetContentState
 
   Widget _buildPlaceholderContainer(double height,
       {double? width,
-      Color? color, // Cho phép màu null để shimmer có tác dụng
+      Color? color,
       double radius = 18.0,
       EdgeInsetsGeometry? margin}) {
     Widget placeholder = Container(
@@ -1128,11 +1109,10 @@ class __DeviceControlSheetContentState
       width: width ?? double.infinity,
       margin: margin,
       decoration: BoxDecoration(
-          color: color ?? Colors.grey[300]!, // Màu nền cho shimmer
+          color: color ?? Colors.grey[300]!,
           borderRadius: BorderRadius.circular(radius)),
     );
 
-    // Chỉ áp dụng Shimmer nếu không có màu cụ thể được truyền vào (mặc định cho skeleton)
     if (color == null) {
       return Shimmer.fromColors(
         baseColor: Colors.grey[300]!,
@@ -1161,7 +1141,6 @@ class __DeviceControlSheetContentState
             childAspectRatio: 1.1,
             children: List.generate(4, (index) {
               return Card(
-                // Mimicking the actual Card structure
                 elevation: 2.5,
                 margin: EdgeInsets.zero,
                 shape: RoundedRectangleBorder(
@@ -1209,96 +1188,59 @@ class __DeviceControlSheetContentState
     );
   }
 
-// Located in __DeviceControlSheetContentState within lib/home_page.dart
-
   Widget _buildCuaCuonSkeleton() {
-    // Title placeholder font size should match the default of _buildTitlePlaceholder used in actual content
     double titlePlaceholderFontSize = 22;
-
-    // Dimensions for "Up" and "Down" button placeholders
-    // These match the `_buildCuaCuonButton`'s container
     double upDownButtonHeight = 75;
-    // Width is calculated dynamically in _buildCuaCuonButton,
-    // for skeleton we can use a similar proportion or a fixed sensible width.
-    // Using MediaQuery here for width makes sense if actual buttons also scale with screen width.
-    // The actual _buildCuaCuonButton uses `MediaQuery.of(context).size.width * 0.38;`
     double upDownButtonWidth = MediaQuery.of(context).size.width * 0.38;
-
-    // Dimensions for "Stop" button placeholder (ElevatedButton.icon)
-    // Actual button padding: EdgeInsets.symmetric(horizontal: 60, vertical: 22)
-    // Actual icon size: 34
-    // Estimated height: 34 (icon) + 22 (top pad) + 22 (bottom pad) = 78px
     double stopButtonPlaceholderHeight = 78;
-    // Actual width is intrinsic. Let's use a representative fixed width for the skeleton.
-    // (Icon + Label + Horizontal Padding). (e.g., 34 + ~60 + 120 = ~214)
     double stopButtonPlaceholderWidth = 220;
 
     return SingleChildScrollView(
-      key: ValueKey(
-          'CuaCuonSkeletonScrollContainer-${widget.deviceId}'), // Key for the scroll view
-      padding: const EdgeInsets.symmetric(
-          horizontal: 16.0,
-          vertical: 10.0), // Matches actual content's scroll view padding
+      key: ValueKey('CuaCuonSkeletonScrollContainer-${widget.deviceId}'),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
       child: Column(
-        key: ValueKey(
-            'CuaCuonSkeletonColumn-${widget.deviceId}'), // Key for the inner column
+        key: ValueKey('CuaCuonSkeletonColumn-${widget.deviceId}'),
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _buildTitlePlaceholder(
-              isActuallyLoading: true,
-              fontSize: titlePlaceholderFontSize), // Matched actual title size
-          const SizedBox(height: 25), // Matches actual content
+              isActuallyLoading: true, fontSize: titlePlaceholderFontSize),
+          const SizedBox(height: 25),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _buildPlaceholderContainer(upDownButtonHeight,
                   width: upDownButtonWidth,
-                  radius: 20, // Matches actual button's BorderRadius
+                  radius: 20,
                   color: Colors.grey[300]),
-              const SizedBox(width: 16), // Matches actual content
+              const SizedBox(width: 16),
               _buildPlaceholderContainer(upDownButtonHeight,
                   width: upDownButtonWidth,
-                  radius: 20, // Matches actual button's BorderRadius
+                  radius: 20,
                   color: Colors.grey[300]),
             ],
           ),
-          const SizedBox(height: 25), // Matches actual content
+          const SizedBox(height: 25),
           _buildPlaceholderContainer(stopButtonPlaceholderHeight,
               width: stopButtonPlaceholderWidth,
-              radius: 20, // Matches actual button's BorderRadius
+              radius: 20,
               color: Colors.grey[300]),
-          const SizedBox(
-              height: 14), // Matches actual content (was 13, corrected to 14)
+          const SizedBox(height: 14),
         ],
       ),
     );
   }
-// Located in __DeviceControlSheetContentState within lib/home_page.dart
 
   Widget _buildCamBienNhietDoAmSkeleton() {
     double titleFontSize = 22;
     double sectionTitleFontSize = 19;
     double cardTitleFontSize = 18;
     double regularTextFontSize = 16;
-    double smallTextFontSize = 11.5;
-    double lineSpacing = 8;
     double cardInnerPaddingAll = 16.0;
 
-    double sensorInfoLineHeight = regularTextFontSize * 1.5 + lineSpacing;
-    double switchListTileHeight = 56.0;
-    double textFormFieldHeight = 60.0;
-    double sliderHeight = 48.0;
-    double buttonHeight = 40.0;
-    double relayItemCardHeight = 120;
-
-    // Wrap the main Column with SingleChildScrollView
     return SingleChildScrollView(
-      key: ValueKey(
-          'CamBienNhietDoAmSkeletonScroll-${widget.deviceId}'), // Optional: Add a key to the scroll view
-      padding: const EdgeInsets.symmetric(
-          horizontal: 12.0,
-          vertical: 8.0), // Matched actual content's scroll view padding
+      key: ValueKey('CamBienNhietDoAmSkeletonScroll-${widget.deviceId}'),
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
       child: Column(
         key: ValueKey('CamBienNhietDoAmSkeleton-${widget.deviceId}'),
         mainAxisSize: MainAxisSize.min,
@@ -1307,8 +1249,7 @@ class __DeviceControlSheetContentState
           _buildTitlePlaceholder(
               isActuallyLoading: true, fontSize: titleFontSize),
           const SizedBox(height: 10),
-
-          // Sensor Info Card Placeholder
+          // Sensor Info Card
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 6.0),
             child: Card(
@@ -1325,10 +1266,10 @@ class __DeviceControlSheetContentState
                     SizedBox(height: 12),
                     _buildPlaceholderContainer(regularTextFontSize * 1.2,
                         width: 200, radius: 3, color: Colors.grey[300]),
-                    SizedBox(height: lineSpacing),
+                    SizedBox(height: 8),
                     _buildPlaceholderContainer(regularTextFontSize * 1.2,
                         width: 220, radius: 3, color: Colors.grey[300]),
-                    SizedBox(height: lineSpacing),
+                    SizedBox(height: 8),
                     _buildPlaceholderContainer(regularTextFontSize * 1.2,
                         width: 180, radius: 3, color: Colors.grey[300]),
                   ],
@@ -1337,16 +1278,13 @@ class __DeviceControlSheetContentState
             ),
           ),
           const SizedBox(height: 15),
-
-          // Relay Title Placeholder
+          // Manual Relays
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: _buildPlaceholderContainer(sectionTitleFontSize * 1.2,
-                width: 130, radius: 4, color: Colors.grey[300]),
+                width: 180, radius: 4, color: Colors.grey[300]),
           ),
           const SizedBox(height: 15),
-
-          // Relay GridView Placeholder
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: GridView.count(
@@ -1356,63 +1294,70 @@ class __DeviceControlSheetContentState
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
               childAspectRatio: 1.1,
-              children: List.generate(4, (index) {
-                return Card(
-                  elevation: 2.0,
-                  margin: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24)),
-                  color: Theme.of(context)
-                      .cardColor, // Use cardColor for skeleton items
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12.0, vertical: 16.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildPlaceholderContainer(36,
-                                width: 36, radius: 18, color: Colors.grey[200]),
-                            _buildPlaceholderContainer(20,
-                                width: 45, radius: 10, color: Colors.grey[200]),
-                          ],
+              children: List.generate(
+                  4,
+                  (index) => Card(
+                        elevation: 2.0,
+                        margin: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24)),
+                        color: Theme.of(context).cardColor,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12.0, vertical: 16.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildPlaceholderContainer(36,
+                                      width: 36,
+                                      radius: 18,
+                                      color: Colors.grey[200]),
+                                  _buildPlaceholderContainer(20,
+                                      width: 45,
+                                      radius: 10,
+                                      color: Colors.grey[200]),
+                                ],
+                              ),
+                              SizedBox(height: 8),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildPlaceholderContainer(15 * 1.2,
+                                      width: 80,
+                                      radius: 3,
+                                      color: Colors.grey[200]),
+                                  SizedBox(height: 3),
+                                  _buildPlaceholderContainer(11.5 * 1.2,
+                                      width: 60,
+                                      radius: 3,
+                                      color: Colors.grey[200]),
+                                ],
+                              )
+                            ],
+                          ),
                         ),
-                        SizedBox(height: 8),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildPlaceholderContainer(15 * 1.2,
-                                width: 80, radius: 3, color: Colors.grey[200]),
-                            SizedBox(height: 3),
-                            _buildPlaceholderContainer(smallTextFontSize * 1.2,
-                                width: 60, radius: 3, color: Colors.grey[200]),
-                          ],
-                        )
-                      ],
-                    ),
-                  ),
-                );
-              }),
+                      )),
             ),
           ),
-          // Use a SizedBox to represent the Divider's space, or a thin placeholder
-          SizedBox(
-              height:
-                  30), // Approximation for Divider height (default is 16, but your content uses Divider(height:30))
-
-          // Auto Watering Title Placeholder
+          // Placeholder for Moisture-Based Watering
+          Divider(
+              height: 30,
+              thickness: 1,
+              indent: 8,
+              endIndent: 8,
+              color: Colors.grey[300]),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: _buildPlaceholderContainer(sectionTitleFontSize * 1.2,
-                width: 150, radius: 4, color: Colors.grey[300]),
+                width: 200, radius: 4, color: Colors.grey[300]),
           ),
           SizedBox(height: 10),
-
-          // Auto Watering Card Placeholder
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 4.0),
             child: Card(
@@ -1424,7 +1369,6 @@ class __DeviceControlSheetContentState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Approximating SwitchListTile
                     Row(children: [
                       Expanded(
                           child: _buildPlaceholderContainer(
@@ -1440,36 +1384,33 @@ class __DeviceControlSheetContentState
                     _buildPlaceholderContainer(regularTextFontSize * 1.2,
                         width: 200, radius: 3, color: Colors.grey[300]),
                     SizedBox(height: 8),
-                    _buildPlaceholderContainer(sliderHeight - 28,
+                    _buildPlaceholderContainer(48.0 - 28,
                         width: double.infinity,
                         radius: 4,
-                        color: Colors.grey[300]), // Simplified slider
+                        color: Colors.grey[300]),
                     SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                            child: _buildPlaceholderContainer(
-                                textFormFieldHeight - 28,
-                                radius: 6,
-                                color: Colors.grey[300])),
-                        SizedBox(width: 12),
-                        Expanded(
-                            child: _buildPlaceholderContainer(
-                                textFormFieldHeight - 28,
-                                radius: 6,
-                                color: Colors.grey[300])),
-                      ],
-                    )
+                    Row(children: [
+                      Expanded(
+                          child: _buildPlaceholderContainer(60.0 - 28,
+                              radius: 6, color: Colors.grey[300])),
+                      SizedBox(width: 12),
+                      Expanded(
+                          child: _buildPlaceholderContainer(60.0 - 28,
+                              radius: 6, color: Colors.grey[300]))
+                    ]),
                   ],
                 ),
               ),
             ),
           ),
-          SizedBox(
-              height:
-                  25), // Approximation for Divider height (default is 16, content uses Divider(height:25))
 
-          // Scheduled Watering Title + Switch Placeholder
+          // Placeholder for Scheduled Watering
+          Divider(
+              height: 30,
+              thickness: 1,
+              indent: 8,
+              endIndent: 8,
+              color: Colors.grey[300]),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: Row(
@@ -1483,15 +1424,13 @@ class __DeviceControlSheetContentState
             ),
           ),
           SizedBox(height: 6.0),
-
-          // Placeholder for one schedule item
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
             child: Card(
               elevation: 1.0,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14.0)),
-              color: Theme.of(context).cardColor, // Use cardColor
+              color: Theme.of(context).cardColor,
               child: SizedBox(
                   height: 70,
                   width: double.infinity,
@@ -1512,13 +1451,11 @@ class __DeviceControlSheetContentState
             ),
           ),
           SizedBox(height: 6.0),
-
-          // Add Schedule Button Placeholder
           Padding(
             padding: const EdgeInsets.only(right: 8.0, bottom: 8.0),
             child: Align(
               alignment: Alignment.centerRight,
-              child: _buildPlaceholderContainer(buttonHeight,
+              child: _buildPlaceholderContainer(40.0,
                   width: 150, radius: 12, color: Colors.grey[300]),
             ),
           ),
@@ -1606,9 +1543,6 @@ class __DeviceControlSheetContentState
   }
 
   Widget _buildScheduledWateringList(BuildContext context, Map schedulesData) {
-    // ... (Previous _buildScheduledWateringList implementation) ...
-    // This method should be fine as is, focusing on layout of its parent.
-    // Ensure its internal card heights are reasonable.
     if (schedulesData.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
@@ -1644,17 +1578,18 @@ class __DeviceControlSheetContentState
       final details = entry.value as Map<dynamic, dynamic>;
       final bool itemIsActive = details['isActive'] as bool? ?? true;
       final bool itemCheckSoil = details['checkSoilMoisture'] as bool? ?? false;
+      final int itemThreshold = details['soilMoistureThreshold'] as int? ?? 30;
 
       scheduleWidgets.add(Card(
           elevation: itemIsActive ? 2.0 : 1.0,
-          margin: EdgeInsets.symmetric(vertical: 7.0, horizontal: 4.0),
+          margin: EdgeInsets.symmetric(vertical: 6.0, horizontal: 0),
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           color: itemIsActive
               ? Theme.of(context).cardColor
               : Theme.of(context).cardColor.withOpacity(0.7),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16.0, 10.0, 8.0, 0.0),
+            padding: const EdgeInsets.fromLTRB(12.0, 8.0, 4.0, 0.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1665,8 +1600,8 @@ class __DeviceControlSheetContentState
                         color: itemIsActive
                             ? Theme.of(context).colorScheme.primary
                             : Colors.grey.shade500,
-                        size: 28),
-                    SizedBox(width: 12),
+                        size: 24),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1674,18 +1609,18 @@ class __DeviceControlSheetContentState
                           Text("${details['time'] ?? 'N/A'}",
                               style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 18,
+                                  fontSize: 16,
                                   color: itemIsActive
                                       ? Theme.of(context)
                                           .textTheme
                                           .titleMedium
                                           ?.color
                                       : Colors.grey.shade700)),
-                          SizedBox(height: 2),
+                          SizedBox(height: 1),
                           Text(
                               "Bơm: ${details['durationSeconds'] ?? '--'} giây.",
                               style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 12.5,
                                   color: itemIsActive
                                       ? Theme.of(context)
                                           .textTheme
@@ -1693,6 +1628,22 @@ class __DeviceControlSheetContentState
                                           ?.color
                                           ?.withOpacity(0.8)
                                       : Colors.grey.shade600)),
+                          if (itemCheckSoil)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2.0),
+                              child: Text(
+                                "Ngưỡng ẩm: $itemThreshold%",
+                                style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: itemIsActive
+                                        ? Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.color
+                                            ?.withOpacity(0.7)
+                                        : Colors.grey.shade500),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -1702,9 +1653,9 @@ class __DeviceControlSheetContentState
                         IconButton(
                           icon: Icon(Icons.edit_calendar_outlined,
                               color: Theme.of(context).colorScheme.secondary,
-                              size: 20),
+                              size: 18),
                           tooltip: "Sửa lịch",
-                          padding: EdgeInsets.all(4),
+                          padding: EdgeInsets.all(3),
                           constraints: BoxConstraints(),
                           onPressed: () {
                             _showAddEditScheduleDialog(context, widget.deviceId,
@@ -1714,9 +1665,9 @@ class __DeviceControlSheetContentState
                         ),
                         IconButton(
                           icon: Icon(Icons.delete_forever_outlined,
-                              color: Colors.redAccent.shade100, size: 20),
+                              color: Colors.redAccent.shade100, size: 18),
                           tooltip: "Xóa lịch",
-                          padding: EdgeInsets.all(4),
+                          padding: EdgeInsets.all(3),
                           constraints: BoxConstraints(),
                           onPressed: () {
                             showDialog(
@@ -1735,7 +1686,7 @@ class __DeviceControlSheetContentState
                                     onPressed: () {
                                       widget.databaseReference
                                           .child(
-                                              'devices/${widget.deviceId}/autoWatering/scheduledWatering/schedules/$scheduleId')
+                                              'devices/${widget.deviceId}/scheduledWatering/schedules/$scheduleId')
                                           .remove();
                                       Navigator.of(ctx).pop();
                                     },
@@ -1758,7 +1709,7 @@ class __DeviceControlSheetContentState
                         visualDensity: VisualDensity.compact,
                         title: Text("Kích hoạt",
                             style: TextStyle(
-                                fontSize: 12.5,
+                                fontSize: 12.0,
                                 color: Theme.of(context)
                                     .textTheme
                                     .bodyMedium
@@ -1768,7 +1719,7 @@ class __DeviceControlSheetContentState
                           if (value != null) {
                             widget.databaseReference
                                 .child(
-                                    'devices/${widget.deviceId}/autoWatering/scheduledWatering/schedules/$scheduleId')
+                                    'devices/${widget.deviceId}/scheduledWatering/schedules/$scheduleId')
                                 .update({'isActive': value});
                           }
                         },
@@ -1783,7 +1734,7 @@ class __DeviceControlSheetContentState
                         visualDensity: VisualDensity.compact,
                         title: Text("Theo độ ẩm",
                             style: TextStyle(
-                                fontSize: 12.5,
+                                fontSize: 12.0,
                                 color: Theme.of(context)
                                     .textTheme
                                     .bodyMedium
@@ -1793,7 +1744,7 @@ class __DeviceControlSheetContentState
                           if (value != null) {
                             widget.databaseReference
                                 .child(
-                                    'devices/${widget.deviceId}/autoWatering/scheduledWatering/schedules/$scheduleId')
+                                    'devices/${widget.deviceId}/scheduledWatering/schedules/$scheduleId')
                                 .update({'checkSoilMoisture': value});
                           }
                         },
@@ -1811,9 +1762,12 @@ class __DeviceControlSheetContentState
   }
 
   void _showAddEditScheduleDialog(
-      BuildContext context, String deviceId, DatabaseReference dbRef,
-      {String? scheduleId, Map<dynamic, dynamic>? initialData}) {
-    // ... (Previous _showAddEditScheduleDialog implementation from Part 2 of the previous response) ...
+    BuildContext context,
+    String deviceId,
+    DatabaseReference dbRef, {
+    String? scheduleId,
+    Map<dynamic, dynamic>? initialData,
+  }) {
     final formKey = GlobalKey<FormState>();
     TimeOfDay? selectedTime;
     String dialogTitle =
@@ -1821,6 +1775,7 @@ class __DeviceControlSheetContentState
 
     bool initialIsActive = true;
     bool initialCheckSoil = false;
+    int initialSoilThreshold = 30;
 
     if (initialData != null) {
       if (initialData['time'] != null) {
@@ -1836,15 +1791,21 @@ class __DeviceControlSheetContentState
       }
       initialIsActive = initialData['isActive'] as bool? ?? true;
       initialCheckSoil = initialData['checkSoilMoisture'] as bool? ?? false;
+      initialSoilThreshold = initialData['soilMoistureThreshold'] as int? ?? 30;
     } else {
       selectedTime = TimeOfDay(hour: 6, minute: 0);
     }
+
     final TextEditingController durationSecondsController =
         TextEditingController(
             text: initialData?['durationSeconds']?.toString() ?? '30');
 
+    final TextEditingController scheduleThresholdController =
+        TextEditingController(text: initialSoilThreshold.toString());
+
     bool currentIsActive = initialIsActive;
     bool currentCheckSoil = initialCheckSoil;
+    double currentScheduleSliderValue = initialSoilThreshold.toDouble();
 
     showDialog(
       context: context,
@@ -1942,7 +1903,7 @@ class __DeviceControlSheetContentState
                             ),
                           )),
                       SizedBox(height: 18),
-                      Text("Thời lượng bơm (tính bằng giây):",
+                      Text("Thời lượng bơm (giây):",
                           style: TextStyle(
                               fontWeight: FontWeight.w500,
                               fontSize: 15,
@@ -2017,6 +1978,68 @@ class __DeviceControlSheetContentState
                         dense: true,
                         activeColor: Theme.of(context).primaryColor,
                       ),
+                      if (currentCheckSoil) ...[
+                        SizedBox(height: 12),
+                        Text(
+                            "Ngưỡng ẩm cho lịch này: ${currentScheduleSliderValue.round()}%",
+                            style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color)),
+                        Slider(
+                          value: currentScheduleSliderValue,
+                          min: 0,
+                          max: 100,
+                          divisions: 20,
+                          label: "${currentScheduleSliderValue.round()}%",
+                          activeColor: Theme.of(context).primaryColor,
+                          inactiveColor:
+                              Theme.of(context).primaryColor.withOpacity(0.3),
+                          onChanged: (double value) {
+                            setStateDialog(() {
+                              currentScheduleSliderValue = value;
+                              scheduleThresholdController.text =
+                                  value.round().toString();
+                            });
+                          },
+                        ),
+                        TextFormField(
+                          controller: scheduleThresholdController,
+                          decoration: InputDecoration(
+                            labelText: "Ngưỡng ẩm lịch (%)",
+                            hintText: "0-100",
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 14),
+                          ),
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          onChanged: (String value) {
+                            double? typedValue = double.tryParse(value);
+                            if (typedValue != null &&
+                                typedValue >= 0 &&
+                                typedValue <= 100) {
+                              if (currentScheduleSliderValue.round() !=
+                                  typedValue.round()) {
+                                setStateDialog(() {
+                                  currentScheduleSliderValue = typedValue;
+                                });
+                              }
+                            }
+                          },
+                          validator: (value) {
+                            if (value == null || value.isEmpty)
+                              return 'Nhập ngưỡng';
+                            final n = int.tryParse(value);
+                            if (n == null || n < 0 || n > 100) return '0-100';
+                            return null;
+                          },
+                        ),
+                        SizedBox(height: 10),
+                      ]
                     ],
                   ),
                 )),
@@ -2046,28 +2069,34 @@ class __DeviceControlSheetContentState
                   if (formKey.currentState!.validate() &&
                       selectedTime != null) {
                     final duration = int.parse(durationSecondsController.text);
+                    final scheduleThreshold =
+                        int.parse(scheduleThresholdController.text);
+
                     final Map<String, dynamic> newScheduleData = {
                       'time':
                           '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}',
                       'durationSeconds': duration,
                       'isActive': currentIsActive,
                       'checkSoilMoisture': currentCheckSoil,
+                      'soilMoistureThreshold': currentCheckSoil
+                          ? scheduleThreshold
+                          : initialData?['soilMoistureThreshold'] ?? 30,
                     };
 
                     String currentScheduleId = scheduleId ??
                         dbRef
                             .child(
-                                'devices/$deviceId/autoWatering/scheduledWatering/schedules')
+                                'devices/$deviceId/scheduledWatering/schedules')
                             .push()
                             .key!;
 
                     dbRef
                         .child(
-                            'devices/$deviceId/autoWatering/scheduledWatering/schedules/$currentScheduleId')
+                            'devices/$deviceId/scheduledWatering/schedules/$currentScheduleId')
                         .set(newScheduleData);
                     Navigator.of(ctx).pop();
                   } else if (selectedTime == null) {
-                    if (context.mounted) {
+                    if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text("Vui lòng chọn giờ tưới.")));
                     }
@@ -2158,8 +2187,6 @@ class __DeviceControlSheetContentState
       );
     } else {
       final deviceData = _deviceData!;
-      final autoWateringData =
-          _deviceData!['autoWatering'] as Map<dynamic, dynamic>? ?? {};
 
       if (widget.deviceId.startsWith('CongTac')) {
         content = SingleChildScrollView(
@@ -2197,12 +2224,6 @@ class __DeviceControlSheetContentState
                         widget.databaseReference
                             .child('devices/${widget.deviceId}')
                             .update({switchId: newValue ? 'on' : 'off'});
-                        if (widget.currentUser != null) {
-                          widget.databaseReference
-                              .child(
-                                  'users/${widget.currentUser!.uid}/devices/${widget.deviceId}')
-                              .update({switchId: newValue ? 'on' : 'off'});
-                        }
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
@@ -2361,12 +2382,9 @@ class __DeviceControlSheetContentState
           ),
         );
       } else if (widget.deviceId.startsWith('CamBienNhietDoAm')) {
-        final bool autoWateringOverallEnabled =
-            autoWateringData['enabled'] as bool? ?? false;
-        final bool scheduledWateringOverallEnabled =
-            autoWateringData['scheduledWatering']?['enabled'] as bool? ?? false;
         final Map<dynamic, dynamic> schedulesMap =
-            autoWateringData['scheduledWatering']?['schedules']
+            (_deviceData?['scheduledWatering']
+                        as Map<dynamic, dynamic>?)?['schedules']
                     as Map<dynamic, dynamic>? ??
                 {};
 
@@ -2378,7 +2396,7 @@ class __DeviceControlSheetContentState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildTitlePlaceholder(),
-              const SizedBox(height: 10),
+              // Sensor Info Card
               Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 4.0, vertical: 6.0),
@@ -2446,16 +2464,15 @@ class __DeviceControlSheetContentState
                   ),
                 ),
               ),
-              const SizedBox(height: 15),
+              // Manual Relay Controls
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: Text("Điều khiển Relay",
+                child: Text("Điều khiển Relay Thủ Công",
                     style: TextStyle(
                         fontSize: 19,
                         fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.titleMedium?.color)),
+                        color: Theme.of(context).primaryColor)),
               ),
-              const SizedBox(height: 15),
               GridView.count(
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
@@ -2491,7 +2508,7 @@ class __DeviceControlSheetContentState
                         bool newValue = !switchStatus;
                         widget.databaseReference
                             .child('devices/${widget.deviceId}')
-                            .update({relayKey: newValue ? 'on' : 'off'});
+                            .update({relayKey: newValue ? true : false});
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -2526,7 +2543,7 @@ class __DeviceControlSheetContentState
                                     widget.databaseReference
                                         .child('devices/${widget.deviceId}')
                                         .update(
-                                            {relayKey: value ? 'on' : 'off'});
+                                            {relayKey: value ? true : false});
                                   },
                                   activeColor: Colors.white,
                                   activeTrackColor:
@@ -2573,296 +2590,280 @@ class __DeviceControlSheetContentState
                   );
                 }).toList(),
               ),
-              Divider(
-                  height: 30,
-                  thickness: 1,
-                  indent: 8,
-                  endIndent: 8,
-                  color: Colors.grey[300]),
+              const SizedBox(height: 15),
+              // Manual Relay Controls
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: Text("Tưới Tự Động",
                     style: TextStyle(
                         fontSize: 19,
                         fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary)),
+                        color: Theme.of(context).primaryColor)),
               ),
+              // --- Section: Tưới Theo Độ Ẩm ---
               Card(
-                  elevation: 2,
-                  margin: EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18)),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SwitchListTile(
-                          title: Text("Kích hoạt chế độ tự động",
+                elevation: 2,
+                margin: EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18)),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("Theo Độ Ẩm Đất",
                               style: TextStyle(
-                                  fontSize: 16.5,
-                                  fontWeight: FontWeight.w500,
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.bold,
                                   color: Theme.of(context)
                                       .textTheme
                                       .titleMedium
                                       ?.color)),
-                          value: autoWateringOverallEnabled,
-                          onChanged: (bool value) {
-                            widget.databaseReference
-                                .child(
-                                    'devices/${widget.deviceId}/autoWatering')
-                                .update({'enabled': value});
-                          },
-                          activeColor: Theme.of(context).primaryColor,
-                          dense: false,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 4),
-                          secondary: Icon(Icons.eco_rounded,
-                              color: autoWateringOverallEnabled
-                                  ? Theme.of(context).primaryColor
-                                  : Colors.grey),
-                        ),
-                        if (autoWateringOverallEnabled) ...[
-                          SizedBox(height: 16),
-                          Text(
-                              "Ngưỡng độ ẩm đất để tưới: ${_sliderValue.round()}%",
-                              style: TextStyle(
-                                  fontSize: 15.5,
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .bodyLarge
-                                      ?.color)),
-                          Slider(
-                            value: _sliderValue,
-                            min: 0,
-                            max: 100,
-                            divisions: 20,
-                            label: "${_sliderValue.round()}%",
-                            activeColor: Theme.of(context).primaryColor,
-                            inactiveColor:
-                                Theme.of(context).primaryColor.withOpacity(0.3),
-                            onChanged: (double value) {
-                              setState(() {
-                                _sliderValue = value;
-                                _soilMoistureThresholdController?.text =
-                                    value.round().toString();
-                              });
-                            },
-                            onChangeEnd: (double value) {
-                              int finalThreshold = value.round();
+                          Switch(
+                            value: _moistureBasedEnabled,
+                            onChanged: (bool value) {
                               widget.databaseReference
                                   .child(
-                                      'devices/${widget.deviceId}/autoWatering')
-                                  .update({
-                                'soilMoistureThreshold': finalThreshold
-                              });
+                                      'devices/${widget.deviceId}/moistureBasedWatering/enabled')
+                                  .set(value);
                             },
-                          ),
-                          SizedBox(height: 12),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _soilMoistureThresholdController,
-                                  decoration: InputDecoration(
-                                    labelText: "Ngưỡng ẩm",
-                                    hintText: "0-100",
-                                    border: OutlineInputBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(10)),
-                                    contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 14),
-                                    suffixText: "%",
-                                  ),
-                                  keyboardType: TextInputType.number,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w500),
-                                  onChanged: (String value) {
-                                    double? typedValue = double.tryParse(value);
-                                    if (typedValue != null &&
-                                        typedValue >= 0 &&
-                                        typedValue <= 100) {
-                                      if (_sliderValue.round() !=
-                                          typedValue.round()) {
-                                        setState(() {
-                                          _sliderValue = typedValue;
-                                        });
-                                      }
-                                    }
-                                  },
-                                  onFieldSubmitted: (String value) {
-                                    int? threshold = int.tryParse(value);
-                                    if (threshold != null &&
-                                        threshold >= 0 &&
-                                        threshold <= 100) {
-                                      widget.databaseReference
-                                          .child(
-                                              'devices/${widget.deviceId}/autoWatering')
-                                          .update({
-                                        'soilMoistureThreshold': threshold
-                                      });
-                                      if (_sliderValue.round() != threshold) {
-                                        setState(() {
-                                          _sliderValue = threshold.toDouble();
-                                        });
-                                      }
-                                    } else {
-                                      _soilMoistureThresholdController?.text =
-                                          _sliderValue.round().toString();
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(SnackBar(
-                                                content: Text(
-                                                    "Ngưỡng ẩm không hợp lệ (0-100).")));
-                                      }
-                                    }
-                                  },
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Nhập ngưỡng';
-                                    }
-                                    final n = int.tryParse(value);
-                                    if (n == null || n < 0 || n > 100) {
-                                      return '0-100';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _autoPumpDurationController,
-                                  decoration: InputDecoration(
-                                    labelText: "Bơm (giây)",
-                                    hintText: "1-600",
-                                    border: OutlineInputBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(10)),
-                                    contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 14),
-                                    suffixText: "giây",
-                                  ),
-                                  keyboardType: TextInputType.number,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w500),
-                                  onFieldSubmitted: (String value) {
-                                    int? duration = int.tryParse(value);
-                                    if (duration != null &&
-                                        duration > 0 &&
-                                        duration <= 600) {
-                                      widget.databaseReference
-                                          .child(
-                                              'devices/${widget.deviceId}/autoWatering')
-                                          .update({
-                                        'pumpDurationWhenDry': duration
-                                      });
-                                      setState(() {
-                                        _autoPumpDurationSeconds = duration;
-                                      });
-                                    } else {
-                                      _autoPumpDurationController?.text =
-                                          _autoPumpDurationSeconds.toString();
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(SnackBar(
-                                                content: Text(
-                                                    "Thời gian bơm không hợp lệ (1-600 giây).")));
-                                      }
-                                    }
-                                  },
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Nhập thời gian';
-                                    }
-                                    final n = int.tryParse(value);
-                                    if (n == null || n <= 0 || n > 600) {
-                                      return '1-600';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                            ],
+                            activeColor: Theme.of(context).primaryColor,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
                           ),
                         ],
-                      ],
-                    ),
-                  )),
-              if (autoWateringOverallEnabled) ...[
-                Divider(
-                    height: 25,
-                    thickness: 1,
-                    indent: 8,
-                    endIndent: 8,
-                    color: Colors.grey[300]),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text("Tưới Theo Lịch Trình",
-                          style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.color)),
-                      Switch(
-                        value: scheduledWateringOverallEnabled,
-                        onChanged: (bool value) {
-                          widget.databaseReference
-                              .child(
-                                  'devices/${widget.deviceId}/autoWatering/scheduledWatering')
-                              .update({'enabled': value});
-                        },
-                        activeColor: Theme.of(context).primaryColor,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
+                      if (_moistureBasedEnabled) ...[
+                        SizedBox(height: 8),
+                        Text(
+                            "Ngưỡng kích hoạt: ${_moistureSliderValue.round()}%",
+                            style: TextStyle(
+                                fontSize: 14.5,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge
+                                    ?.color)),
+                        Slider(
+                          value: _moistureSliderValue,
+                          min: 0,
+                          max: 100,
+                          divisions: 20,
+                          label: "${_moistureSliderValue.round()}%",
+                          activeColor: Theme.of(context).primaryColor,
+                          inactiveColor:
+                              Theme.of(context).primaryColor.withOpacity(0.3),
+                          onChanged: (double value) {
+                            setState(() {
+                              _moistureSliderValue = value;
+                              _moistureThresholdController?.text =
+                                  value.round().toString();
+                            });
+                          },
+                          onChangeEnd: (double value) {
+                            int finalThreshold = value.round();
+                            widget.databaseReference
+                                .child(
+                                    'devices/${widget.deviceId}/moistureBasedWatering/soilMoistureThreshold')
+                                .set(finalThreshold);
+                          },
+                        ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _moistureThresholdController,
+                                decoration: InputDecoration(
+                                  labelText: "Ngưỡng (%)",
+                                  isDense: true,
+                                  border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 10),
+                                ),
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 13),
+                                onChanged: (String value) {
+                                  double? typedValue = double.tryParse(value);
+                                  if (typedValue != null &&
+                                      typedValue >= 0 &&
+                                      typedValue <= 100) {
+                                    if (_moistureSliderValue.round() !=
+                                        typedValue.round()) {
+                                      setState(() {
+                                        _moistureSliderValue = typedValue;
+                                      });
+                                    }
+                                  }
+                                },
+                                onFieldSubmitted: (String value) {
+                                  int? threshold = int.tryParse(value);
+                                  if (threshold != null &&
+                                      threshold >= 0 &&
+                                      threshold <= 100) {
+                                    widget.databaseReference
+                                        .child(
+                                            'devices/${widget.deviceId}/moistureBasedWatering/soilMoistureThreshold')
+                                        .set(threshold);
+                                    if (_moistureSliderValue.round() !=
+                                        threshold) {
+                                      setState(() {
+                                        _moistureSliderValue =
+                                            threshold.toDouble();
+                                      });
+                                    }
+                                  } else {
+                                    _moistureThresholdController?.text =
+                                        _moistureSliderValue.round().toString();
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(SnackBar(
+                                              content: Text(
+                                                  "Ngưỡng ẩm không hợp lệ (0-100).")));
+                                    }
+                                  }
+                                },
+                                validator: (value) {
+                                  if (value == null || value.isEmpty)
+                                    return 'Nhập';
+                                  final n = int.tryParse(value);
+                                  if (n == null || n < 0 || n > 100)
+                                    return '0-100';
+                                  return null;
+                                },
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _moisturePumpDurationController,
+                                decoration: InputDecoration(
+                                  labelText: "Bơm (giây)",
+                                  isDense: true,
+                                  border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 10),
+                                ),
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 13),
+                                onFieldSubmitted: (String value) {
+                                  int? duration = int.tryParse(value);
+                                  final currentDurationOnFirebase =
+                                      (_deviceData?['moistureBasedWatering']
+                                                  as Map?)?[
+                                              'pumpDurationWhenDry'] as int? ??
+                                          30;
+                                  if (duration != null &&
+                                      duration > 0 &&
+                                      duration <= 600) {
+                                    widget.databaseReference
+                                        .child(
+                                            'devices/${widget.deviceId}/moistureBasedWatering/pumpDurationWhenDry')
+                                        .set(duration);
+                                  } else {
+                                    _moisturePumpDurationController?.text =
+                                        currentDurationOnFirebase.toString();
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(SnackBar(
+                                              content: Text(
+                                                  "Thời gian bơm không hợp lệ (1-600 giây).")));
+                                    }
+                                  }
+                                },
+                                validator: (value) {
+                                  if (value == null || value.isEmpty)
+                                    return 'Nhập';
+                                  final n = int.tryParse(value);
+                                  if (n == null || n <= 0 || n > 600)
+                                    return '1-600';
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
-                if (scheduledWateringOverallEnabled) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 4.0, vertical: 6.0),
-                    child: _buildScheduledWateringList(context, schedulesMap),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(
-                        right: 8.0, top: 6.0, bottom: 8.0),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context)
-                                .primaryColor
-                                .withOpacity(0.15),
-                            foregroundColor: Theme.of(context).primaryColorDark,
-                            elevation: 0,
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 10),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12))),
-                        icon: Icon(Icons.add_alarm_rounded, size: 20),
-                        label: Text("Thêm Lịch Tưới",
-                            style: TextStyle(
-                                fontSize: 14.5, fontWeight: FontWeight.w500)),
-                        onPressed: () {
-                          _showAddEditScheduleDialog(context, widget.deviceId,
-                              widget.databaseReference);
-                        },
+              ),
+              // --- Sub-Section: Tưới Theo Lịch Trình ---
+              Card(
+                elevation: 2,
+                margin: EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18)),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("Theo Lịch Trình",
+                              style: TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.color)),
+                          Switch(
+                            value: _scheduledWateringEnabled,
+                            onChanged: (bool value) {
+                              widget.databaseReference
+                                  .child(
+                                      'devices/${widget.deviceId}/scheduledWatering/enabled')
+                                  .set(value);
+                            },
+                            activeColor: Theme.of(context).primaryColor,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ],
                       ),
-                    ),
+                      if (_scheduledWateringEnabled) ...[
+                        SizedBox(height: 8),
+                        _buildScheduledWateringList(context, schedulesMap),
+                        SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(context)
+                                    .primaryColor
+                                    .withOpacity(0.10),
+                                foregroundColor:
+                                    Theme.of(context).primaryColorDark,
+                                elevation: 0,
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 6),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8))),
+                            icon: Icon(Icons.add_alarm_rounded, size: 16),
+                            label: Text("Thêm Lịch",
+                                style: TextStyle(
+                                    fontSize: 13.0,
+                                    fontWeight: FontWeight.w500)),
+                            onPressed: () {
+                              _showAddEditScheduleDialog(context,
+                                  widget.deviceId, widget.databaseReference);
+                            },
+                          ),
+                        ),
+                      ]
+                    ],
                   ),
-                ],
-              ],
-              SizedBox(height: 10),
+                ),
+              ),
+              // ], // This was the end of the now-removed 'if (_autoWateringOverallEnabled)'
             ],
           ),
         );
@@ -2882,4 +2883,3 @@ class __DeviceControlSheetContentState
     );
   }
 }
-// End of Part 2
