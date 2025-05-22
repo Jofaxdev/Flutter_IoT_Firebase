@@ -1,18 +1,24 @@
-// [Existing imports]
 import 'dart:async';
-import 'package:google_fonts/google_fonts.dart'; // Thêm import này
+import 'dart:math'; // Thêm import này để tạo ID ngẫu nhiên
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 
 import 'package:esp8266_project/login_pages.dart';
-import 'package:esp8266_project/widget/QrScanner.dart'; // This is the import
+import 'package:esp8266_project/widget/QrScanner.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-// [Existing HomePage class and its methods remain largely the same]
-// ... HomePage methods like _showDeleteConfirmationDialog, _deleteDevice, _addDevice, _signOut, _showAddDeviceDialog, _scanQrCode, _showControlSheet, _showEditDialog, _buildColorOption, _getDevices, build...
+// Hàm tạo ID ngẫu nhiên ngắn
+String _generateShortId() {
+  const String chars =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  Random rnd = Random();
+  return String.fromCharCodes(
+      Iterable.generate(3, (_) => chars.codeUnitAt(rnd.nextInt(chars.length))));
+}
 
 class HomePage extends StatelessWidget {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -22,30 +28,25 @@ class HomePage extends StatelessWidget {
 
   HomePage({Key? key}) : super(key: key);
 
-// Bên trong class HomePage
-
   Future<void> _showDeleteConfirmationDialog(
       BuildContext context, String deviceId, String customName) async {
     return showDialog<void>(
       context: context,
-      barrierDismissible: true, // Người dùng có thể nhấn ra ngoài để đóng
+      barrierDismissible: true,
       builder: (BuildContext dialogContext) {
-        // Sử dụng một biến để quản lý trạng thái đang xóa, nếu muốn hiển thị loading indicator
-        // bool _isDeleting = false; // Bỏ qua nếu không dùng loading indicator phức tạp trong dialog
-
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
           ),
           title: Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.warning_amber_rounded,
                 color: Colors.redAccent,
                 size: 28,
               ),
-              SizedBox(width: 12),
-              Text(
+              const SizedBox(width: 12),
+              const Text(
                 'Xác nhận xóa',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
@@ -61,11 +62,13 @@ class HomePage extends StatelessWidget {
               ],
             ),
           ),
-          actionsPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          actionsPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           actions: <Widget>[
             TextButton(
               style: TextButton.styleFrom(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10))),
               child: Text(
@@ -78,25 +81,19 @@ class HomePage extends StatelessWidget {
               },
             ),
             ElevatedButton.icon(
-              icon: Icon(Icons.delete_forever_rounded, size: 20),
-              label: Text('XÓA', style: TextStyle(fontWeight: FontWeight.bold)),
+              icon: const Icon(Icons.delete_forever_rounded, size: 20),
+              label: const Text('XÓA',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.redAccent,
                   foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10))),
               onPressed: () {
-                // Bước 1: Đóng dialog ngay lập tức
                 Navigator.of(dialogContext).pop();
-
-                // Bước 2: Thực hiện tác vụ xóa (không cần await ở đây nếu không muốn chặn UI sau khi dialog đóng)
-                // _deleteDevice vẫn là async và sẽ chạy, SnackBar sẽ hiển thị khi nó hoàn thành.
                 _deleteDevice(deviceId, context);
-
-                // Không cần await _deleteDevice(deviceId, context); ở đây nữa
-                // vì chúng ta muốn dialog đóng ngay.
-                // SnackBar trong _deleteDevice sẽ thông báo kết quả.
               },
             ),
           ],
@@ -105,7 +102,6 @@ class HomePage extends StatelessWidget {
     );
   }
 
-// Hàm _deleteDevice của bạn giữ nguyên như hiện tại
   Future<void> _deleteDevice(String deviceId, BuildContext context) async {
     final User? user = _auth.currentUser;
     if (user != null) {
@@ -113,8 +109,6 @@ class HomePage extends StatelessWidget {
         await _databaseReference
             .child('users/${user.uid}/devices/$deviceId')
             .remove();
-        // Đảm bảo context vẫn còn mounted trước khi hiển thị SnackBar
-        // Vì context của dialog đã bị pop, context truyền vào đây là context của HomePage
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Đã xóa thiết bị $deviceId')),
@@ -167,60 +161,67 @@ class HomePage extends StatelessWidget {
       Map<String, dynamic> initialGlobalDataForDeviceUpdate = {};
 
       if (deviceId.startsWith('CamBienNhietDoAm')) {
-        // This structure assumes the new Firebase layout with a general 'autoWateringEnabled'
-        // and then separate 'moistureBasedWatering' and 'scheduledWatering' objects.
         Map<String, dynamic> defaultMoistureBased = {
-          "enabled": false,
-          "pumpDurationWhenDry": 30,
-          "soilMoistureThreshold": 50
+          "en": 0,
+          "d": 30,
+          "th": 50
         };
-        Map<String, dynamic> defaultScheduled = {
-          "enabled": false,
-          "schedules": {}
-        };
+        Map<String, dynamic> defaultScheduled = {"en": 0, "sc": []};
 
         Map<dynamic, dynamic> currentGlobalDeviceData =
             globalDeviceSnapshotEvent.snapshot.value
                     as Map<dynamic, dynamic>? ??
                 {};
 
-        if (currentGlobalDeviceData['autoWateringEnabled'] == null) {
-          initialGlobalDataForDeviceUpdate['autoWateringEnabled'] = false;
+        if (currentGlobalDeviceData['t'] == null) {
+          initialGlobalDataForDeviceUpdate['t'] = 0.0;
+        }
+        if (currentGlobalDeviceData['hm'] == null) {
+          initialGlobalDataForDeviceUpdate['hm'] = 0;
+        }
+        if (currentGlobalDeviceData['sm'] == null) {
+          initialGlobalDataForDeviceUpdate['sm'] = 0;
+        }
+        if (currentGlobalDeviceData['r1'] == null) {
+          initialGlobalDataForDeviceUpdate['r1'] = 0;
+        }
+        if (currentGlobalDeviceData['r2'] == null) {
+          initialGlobalDataForDeviceUpdate['r2'] = 0;
+        }
+        if (currentGlobalDeviceData['r3'] == null) {
+          initialGlobalDataForDeviceUpdate['r3'] = 0;
+        }
+        if (currentGlobalDeviceData['wp'] == null) {
+          initialGlobalDataForDeviceUpdate['wp'] = 0;
         }
 
-        if (currentGlobalDeviceData['moistureBasedWatering'] == null) {
-          initialGlobalDataForDeviceUpdate['moistureBasedWatering'] =
-              defaultMoistureBased;
+        if (currentGlobalDeviceData['mbw'] == null) {
+          initialGlobalDataForDeviceUpdate['mbw'] = defaultMoistureBased;
         } else {
           Map<dynamic, dynamic> currentMoistureData =
-              currentGlobalDeviceData['moistureBasedWatering']
-                      as Map<dynamic, dynamic>? ??
-                  {};
-          if (currentMoistureData['enabled'] == null)
-            initialGlobalDataForDeviceUpdate['moistureBasedWatering/enabled'] =
-                false;
-          if (currentMoistureData['pumpDurationWhenDry'] == null)
-            initialGlobalDataForDeviceUpdate[
-                'moistureBasedWatering/pumpDurationWhenDry'] = 30;
-          if (currentMoistureData['soilMoistureThreshold'] == null)
-            initialGlobalDataForDeviceUpdate[
-                'moistureBasedWatering/soilMoistureThreshold'] = 50;
+              currentGlobalDeviceData['mbw'] as Map<dynamic, dynamic>? ?? {};
+          if (currentMoistureData['en'] == null) {
+            initialGlobalDataForDeviceUpdate['mbw/en'] = 0;
+          }
+          if (currentMoistureData['d'] == null) {
+            initialGlobalDataForDeviceUpdate['mbw/d'] = 30;
+          }
+          if (currentMoistureData['th'] == null) {
+            initialGlobalDataForDeviceUpdate['mbw/th'] = 50;
+          }
         }
 
-        if (currentGlobalDeviceData['scheduledWatering'] == null) {
-          initialGlobalDataForDeviceUpdate['scheduledWatering'] =
-              defaultScheduled;
+        if (currentGlobalDeviceData['sw'] == null) {
+          initialGlobalDataForDeviceUpdate['sw'] = defaultScheduled;
         } else {
           Map<dynamic, dynamic> currentScheduledData =
-              currentGlobalDeviceData['scheduledWatering']
-                      as Map<dynamic, dynamic>? ??
-                  {};
-          if (currentScheduledData['enabled'] == null)
-            initialGlobalDataForDeviceUpdate['scheduledWatering/enabled'] =
-                false;
-          if (currentScheduledData['schedules'] == null)
-            initialGlobalDataForDeviceUpdate['scheduledWatering/schedules'] =
-                {};
+              currentGlobalDeviceData['sw'] as Map<dynamic, dynamic>? ?? {};
+          if (currentScheduledData['en'] == null) {
+            initialGlobalDataForDeviceUpdate['sw/en'] = 0;
+          }
+          if (currentScheduledData['sc'] == null) {
+            initialGlobalDataForDeviceUpdate['sw/sc'] = [];
+          }
         }
       }
 
@@ -241,7 +242,7 @@ class HomePage extends StatelessWidget {
     await googleSignIn.signOut();
     if (context.mounted) {
       Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => LoginPage()));
+          MaterialPageRoute(builder: (context) => const LoginPage()));
     }
   }
 
@@ -262,7 +263,7 @@ class HomePage extends StatelessWidget {
               children: [
                 Icon(Icons.playlist_add_rounded,
                     color: Theme.of(context).primaryColor, size: 30),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Text('Thêm thiết bị',
                     style: TextStyle(
                         fontWeight: FontWeight.bold,
@@ -278,7 +279,7 @@ class HomePage extends StatelessWidget {
                 children: [
                   Text("Nhập mã định danh (ID) của thiết bị bạn muốn kết nối.",
                       style: TextStyle(fontSize: 15, color: Colors.grey[600])),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
                   TextFormField(
                     controller: deviceController,
                     autofocus: true,
@@ -303,7 +304,7 @@ class HomePage extends StatelessWidget {
                       fillColor: Theme.of(context).brightness == Brightness.dark
                           ? Colors.grey[800]
                           : Colors.grey.shade50,
-                      contentPadding: EdgeInsets.symmetric(
+                      contentPadding: const EdgeInsets.symmetric(
                           vertical: 16.0, horizontal: 16.0),
                     ),
                     validator: (value) {
@@ -325,25 +326,25 @@ class HomePage extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.5)),
                 style: TextButton.styleFrom(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20.0, vertical: 12.0),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10))),
                 onPressed: () {
                   Navigator.of(dialogContext).pop();
                 },
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               ElevatedButton.icon(
-                icon: Icon(Icons.add_link_rounded, size: 22),
-                label: Text('KẾT NỐI',
+                icon: const Icon(Icons.add_link_rounded, size: 22),
+                label: const Text('KẾT NỐI',
                     style: TextStyle(
                         fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).primaryColor,
                   foregroundColor: Colors.white,
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24.0, vertical: 12.0),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10.0)),
                   elevation: 3,
@@ -363,22 +364,167 @@ class HomePage extends StatelessWidget {
 
   void _scanQrCode(BuildContext context) async {
     final qrResult = await Navigator.push(
-        context, MaterialPageRoute(builder: (context) => QrScanner()));
+        context, MaterialPageRoute(builder: (context) => const QrScanner()));
     if (qrResult != null && qrResult is String) {
       _addDevice(qrResult, context);
     }
   }
 
   Widget _buildRelayControlTile(
-      BuildContext context,
-      String deviceId,
-      User? user,
-      DatabaseReference dbRef,
-      String relayName,
-      String relayKey,
-      bool isActive,
-      IconData iconData) {
-    return Container();
+    BuildContext context,
+    String deviceId,
+    User? user,
+    DatabaseReference dbRef,
+    String relayName,
+    String relayKey,
+    bool
+        isActiveOldStructure, // For old structure like CongTac (e.g., 'D1' status)
+    int relayStatusNewStructure, // For new structure (0 or 1) like CamBien relays (e.g., 'r1' status)
+    IconData iconData, {
+    bool isManuallyDisabledByAutomation = false,
+  }) {
+    bool currentStatusIsOn;
+    String firebaseRelayKeyToUpdate;
+    VoidCallback? onTapAction;
+
+    bool isCamBienDevice = deviceId.startsWith("CamBienNhietDoAm");
+
+    if (isCamBienDevice) {
+      currentStatusIsOn = relayStatusNewStructure == 1;
+      firebaseRelayKeyToUpdate = relayKey; // 'r1', 'r2', 'r3', 'wp'
+    } else {
+      currentStatusIsOn = isActiveOldStructure;
+      firebaseRelayKeyToUpdate = relayKey; // 'D1', 'D2', etc.
+    }
+
+    // This variable determines if THIS SPECIFIC TILE (the pump) should be programmatically disabled.
+    bool thisRelayIsProgrammaticallyDisabled =
+        isCamBienDevice && relayKey == 'wp' && isManuallyDisabledByAutomation;
+
+    // Determine the card color based on its on/off state, regardless of automation lock for visual consistency.
+    Color cardColor = currentStatusIsOn
+        ? Theme.of(context).primaryColor // Color when 'ON'
+        : Theme.of(context).cardColor; // Default card color when 'OFF'
+
+    // Icon color depends on the relay's actual on/off state
+    Color iconColor =
+        currentStatusIsOn ? Colors.white : Theme.of(context).primaryColorDark;
+
+    // Text color for relay name also depends on actual on/off state
+    Color relayNameTextColor = currentStatusIsOn
+        ? Colors.white
+        : Theme.of(context).textTheme.titleMedium?.color ?? Colors.black;
+
+    // Text color for status text ("ĐANG BẬT"/"ĐANG TẮT")
+    Color statusTextColor = currentStatusIsOn
+        ? Colors.white.withOpacity(0.9)
+        : Colors.grey.shade500;
+
+    if (thisRelayIsProgrammaticallyDisabled) {
+      onTapAction = () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Bơm Chính tạm khóa khi chế độ tưới tự động đang hoạt động.'),
+            backgroundColor: Colors.orangeAccent,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      };
+    } else {
+      onTapAction = () {
+        dynamic newValue;
+        if (isCamBienDevice) {
+          newValue = currentStatusIsOn ? 0 : 1;
+        } else {
+          newValue = currentStatusIsOn ? 'off' : 'on';
+        }
+        dbRef
+            .child('devices/$deviceId/$firebaseRelayKeyToUpdate')
+            .set(newValue);
+      };
+    }
+
+    Widget relayCardContent = Card(
+      elevation: currentStatusIsOn ? 6 : 3,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      color: cardColor,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap:
+            onTapAction, // onTapAction handles the disabled state (shows SnackBar) or toggles
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: currentStatusIsOn
+                          ? Colors.white.withOpacity(0.2)
+                          : Theme.of(context).primaryColor.withOpacity(0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(iconData, size: 26, color: iconColor),
+                  ),
+                  // Switch is always visible but might be non-interactive due to InkWell's onTap
+                  Switch(
+                    value: currentStatusIsOn,
+                    onChanged: thisRelayIsProgrammaticallyDisabled
+                        ? null
+                        : (value) {
+                            // Disable switch interaction if programmatically locked
+                            if (onTapAction != null) onTapAction();
+                          },
+                    activeColor: Colors.white,
+                    activeTrackColor: Colors.white.withOpacity(0.4),
+                    // inactiveThumbColor:
+                    //     Colors.grey.shade400, // Darker thumb when disabled
+                    // inactiveTrackColor:
+                    //     Colors.grey.shade200, // Darker track when disabled
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  )
+                ],
+              ),
+              const SizedBox(height: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(relayName,
+                      textAlign: TextAlign.left,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: relayNameTextColor)),
+                  const SizedBox(height: 3),
+                  Text(currentStatusIsOn ? "ĐANG BẬT" : "ĐANG TẮT",
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.6,
+                          color: statusTextColor)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (thisRelayIsProgrammaticallyDisabled) {
+      return Opacity(opacity: 0.7, child: relayCardContent);
+    } else {
+      return relayCardContent;
+    }
   }
 
   void _showControlSheet(
@@ -414,7 +560,7 @@ class HomePage extends StatelessWidget {
         TextEditingController(text: currentCustomName);
     final User? user = _auth.currentUser;
     Color selectedColor = currentColor;
-    final int maxNameLength = 20;
+    const int maxNameLength = 20;
 
     showDialog(
       context: context,
@@ -432,8 +578,8 @@ class HomePage extends StatelessWidget {
                     color: Theme.of(context).primaryColor,
                     size: 28,
                   ),
-                  SizedBox(width: 10),
-                  Text(
+                  const SizedBox(width: 10),
+                  const Text(
                     'Chỉnh sửa Thiết bị',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
@@ -451,24 +597,24 @@ class HomePage extends StatelessWidget {
                           color: Colors.grey[700],
                           fontWeight: FontWeight.w500),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     TextField(
                       controller: nameController,
                       autofocus: true,
                       decoration: InputDecoration(
                         hintText:
-                            'Nhập tên tùy chỉnh (tối đa ${maxNameLength} ký tự)',
+                            'Nhập tên tùy chỉnh (tối đa $maxNameLength ký tự)',
                         border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8)),
                         counterText:
-                            "${nameController.text.length}/${maxNameLength}",
+                            "${nameController.text.length}/$maxNameLength",
                       ),
                       maxLength: maxNameLength,
                       onChanged: (text) {
                         setStateDialog(() {});
                       },
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     Text(
                       "Chọn Màu:",
                       style: TextStyle(
@@ -476,7 +622,7 @@ class HomePage extends StatelessWidget {
                           color: Colors.grey[700],
                           fontWeight: FontWeight.w500),
                     ),
-                    SizedBox(height: 10),
+                    const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
@@ -505,9 +651,10 @@ class HomePage extends StatelessWidget {
                           });
                         }),
                         _buildColorOption(
-                            context, Color(0xFF7E60BF), selectedColor, () {
+                            context, const Color(0xFF7E60BF), selectedColor,
+                            () {
                           setStateDialog(() {
-                            selectedColor = Color(0xFF7E60BF);
+                            selectedColor = const Color(0xFF7E60BF);
                           });
                         }),
                       ],
@@ -528,9 +675,10 @@ class HomePage extends StatelessWidget {
                     if (newName.isNotEmpty && user != null) {
                       if (newName.length > maxNameLength) {
                         if (dialogContext.mounted) {
-                          ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(
-                              content: Text(
-                                  'Tên thiết bị quá dài (tối đa ${maxNameLength} ký tự).')));
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              const SnackBar(
+                                  content: Text(
+                                      'Tên thiết bị quá dài (tối đa $maxNameLength ký tự).')));
                         }
                         return;
                       }
@@ -548,7 +696,7 @@ class HomePage extends StatelessWidget {
                     } else if (newName.isEmpty) {
                       if (dialogContext.mounted) {
                         ScaffoldMessenger.of(dialogContext).showSnackBar(
-                            SnackBar(
+                            const SnackBar(
                                 content:
                                     Text('Tên thiết bị không được để trống.')));
                       }
@@ -558,7 +706,8 @@ class HomePage extends StatelessWidget {
                       backgroundColor: selectedColor,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8))),
-                  child: Text('Lưu', style: TextStyle(color: Colors.white)),
+                  child:
+                      const Text('Lưu', style: TextStyle(color: Colors.white)),
                 ),
               ],
             );
@@ -635,7 +784,7 @@ class HomePage extends StatelessWidget {
         ),
         flexibleSpace: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
+            gradient: const LinearGradient(
               colors: [
                 oceanBlueDark,
                 oceanBlueMedium,
@@ -721,7 +870,7 @@ class HomePage extends StatelessWidget {
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
                       color: Theme.of(context).textTheme.titleMedium?.color)),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               Expanded(
                 child: StreamBuilder<DatabaseEvent>(
                   stream: _getDevices(),
@@ -730,7 +879,7 @@ class HomePage extends StatelessWidget {
                       return Center(child: Text('Lỗi: ${snapshot.error}'));
                     }
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Center(child: CircularProgressIndicator());
+                      return const Center(child: CircularProgressIndicator());
                     }
                     final devicesMap =
                         snapshot.data?.snapshot.value as Map<dynamic, dynamic>?;
@@ -741,12 +890,12 @@ class HomePage extends StatelessWidget {
                         children: [
                           Icon(Icons.devices_other_rounded,
                               size: 80, color: Colors.grey[400]),
-                          SizedBox(height: 20),
+                          const SizedBox(height: 20),
                           Text('Không có thiết bị nào được kết nối.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                   fontSize: 17, color: Colors.grey[600])),
-                          SizedBox(height: 10),
+                          const SizedBox(height: 10),
                           Text('Thêm thiết bị mới bằng menu ở góc trên.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
@@ -758,17 +907,20 @@ class HomePage extends StatelessWidget {
 
                     return GridView.builder(
                       padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 1,
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 1,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16),
                       itemCount: deviceKeys.length,
                       itemBuilder: (context, index) {
                         final deviceId = deviceKeys[index] as String;
                         final deviceData =
                             devicesMap[deviceId] as Map<dynamic, dynamic>;
-                        final deviceStatus = deviceData['status'] as String?;
+                        final userDeviceListStatus =
+                            deviceData['status'] as String? ?? "off";
+
                         final customName =
                             deviceData['customName'] as String? ?? deviceId;
 
@@ -800,7 +952,7 @@ class HomePage extends StatelessWidget {
                           deviceIcon = Icons.developer_board_rounded;
                         }
 
-                        bool isActive = deviceStatus == 'on';
+                        bool isActiveInUserList = userDeviceListStatus == 'on';
 
                         return GestureDetector(
                           onTap: () =>
@@ -808,13 +960,13 @@ class HomePage extends StatelessWidget {
                           onLongPress: () => _showEditDialog(
                               context, deviceId, customName, color),
                           child: Card(
-                            elevation: isActive ? 6.0 : 2.5,
-                            shadowColor: isActive
+                            elevation: isActiveInUserList ? 6.0 : 2.5,
+                            shadowColor: isActiveInUserList
                                 ? color.withOpacity(0.5)
                                 : Colors.grey.withOpacity(0.3),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(20.0)),
-                            color: isActive
+                            color: isActiveInUserList
                                 ? color
                                 : Theme.of(context).cardColor.withOpacity(0.85),
                             child: Stack(
@@ -827,17 +979,17 @@ class HomePage extends StatelessWidget {
                                         CrossAxisAlignment.center,
                                     children: [
                                       Container(
-                                        padding:
-                                            EdgeInsets.all(isActive ? 12 : 10),
+                                        padding: EdgeInsets.all(
+                                            isActiveInUserList ? 12 : 10),
                                         decoration: BoxDecoration(
-                                          color: isActive
+                                          color: isActiveInUserList
                                               ? Colors.white.withOpacity(0.25)
                                               : color.withOpacity(0.15),
                                           shape: BoxShape.circle,
                                         ),
                                         child: Icon(deviceIcon,
-                                            size: isActive ? 44 : 40,
-                                            color: isActive
+                                            size: isActiveInUserList ? 44 : 40,
+                                            color: isActiveInUserList
                                                 ? Colors.white
                                                 : color.computeLuminance() > 0.5
                                                     ? Colors.black87
@@ -853,7 +1005,7 @@ class HomePage extends StatelessWidget {
                                             fontSize: 14.5,
                                             fontWeight: FontWeight.w600,
                                             height: 1.2,
-                                            color: isActive
+                                            color: isActiveInUserList
                                                 ? Colors.white
                                                 : Theme.of(context)
                                                     .textTheme
@@ -862,13 +1014,13 @@ class HomePage extends StatelessWidget {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        isActive
+                                        isActiveInUserList
                                             ? "Đang hoạt động"
                                             : "Ngoại tuyến",
                                         style: GoogleFonts.mulish(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w500,
-                                          color: isActive
+                                          color: isActiveInUserList
                                               ? Colors.white.withOpacity(0.85)
                                               : Colors.grey.shade600,
                                         ),
@@ -895,7 +1047,7 @@ class HomePage extends StatelessWidget {
                                         padding: const EdgeInsets.all(8.0),
                                         child: Icon(
                                           Icons.close_rounded,
-                                          color: isActive
+                                          color: isActiveInUserList
                                               ? Colors.white.withOpacity(0.8)
                                               : Colors.grey.shade700,
                                           size: 20,
@@ -926,8 +1078,17 @@ class _DeviceControlSheetContent extends StatefulWidget {
   final String customName;
   final DatabaseReference databaseReference;
   final User? currentUser;
-  final Widget Function(BuildContext, String, User?, DatabaseReference, String,
-      String, bool, IconData) buildRelayControlTileCallback;
+  final Widget Function(
+      BuildContext context,
+      String deviceId,
+      User? user,
+      DatabaseReference dbRef,
+      String relayName,
+      String relayKey,
+      bool isActiveOldStructure,
+      int relayStatusNewStructure,
+      IconData iconData,
+      {bool isManuallyDisabledByAutomation}) buildRelayControlTileCallback;
 
   const _DeviceControlSheetContent({
     Key? key,
@@ -950,29 +1111,18 @@ class __DeviceControlSheetContentState
   String? _error;
   StreamSubscription<DatabaseEvent>? _dataSubscription;
 
-  // For Moisture-based watering
   TextEditingController? _moistureThresholdController;
   TextEditingController? _moisturePumpDurationController;
   double _moistureSliderValue = 50.0;
   bool _moistureBasedEnabled = false;
-  bool _moistureFieldsInitialized = false;
-
-  // For Scheduled watering
   bool _scheduledWateringEnabled = false;
+  bool _isPumpManuallyDisabledByAutomation = false;
 
   final List<Map<String, dynamic>> _sensorRelaysInfo = [
-    {
-      'key': 'relay1',
-      'name': 'Đèn chiếu sáng',
-      'icon': Icons.lightbulb_outline_rounded
-    },
-    {'key': 'relay2', 'name': 'Quạt thông gió', 'icon': FontAwesomeIcons.fan},
-    {
-      'key': 'relay3',
-      'name': 'Máy phun sương',
-      'icon': Icons.water_drop_outlined
-    },
-    {'key': 'water_pump', 'name': 'Bơm Chính', 'icon': Icons.water_outlined},
+    {'key': 'r1', 'name': 'Đèn', 'icon': Icons.lightbulb_outline_rounded},
+    {'key': 'r2', 'name': 'Quạt', 'icon': FontAwesomeIcons.fan},
+    {'key': 'r3', 'name': 'Phun Sương', 'icon': Icons.water_drop_outlined},
+    {'key': 'wp', 'name': 'Bơm Chính', 'icon': Icons.water_outlined},
   ];
 
   @override
@@ -1002,59 +1152,52 @@ class __DeviceControlSheetContentState
                 Map<dynamic, dynamic>.from(event.snapshot.value as Map);
 
             if (widget.deviceId.startsWith('CamBienNhietDoAm')) {
-              final moistureData = _deviceData?['moistureBasedWatering']
-                      as Map<dynamic, dynamic>? ??
-                  {};
-              _moistureBasedEnabled = moistureData['enabled'] as bool? ?? false;
+              final moistureData =
+                  _deviceData?['mbw'] as Map<dynamic, dynamic>? ?? {};
+              _moistureBasedEnabled = (moistureData['en'] as int? ?? 0) == 1;
 
-              if (!_moistureFieldsInitialized) {
-                _moistureThresholdController ??= TextEditingController();
-                _moisturePumpDurationController ??= TextEditingController();
+              dynamic rawMoistureThreshold = moistureData['th'];
+              int currentMoistureThresholdInt = 50;
+              if (rawMoistureThreshold is int) {
+                currentMoistureThresholdInt = rawMoistureThreshold;
+              } else if (rawMoistureThreshold is double) {
+                currentMoistureThresholdInt = rawMoistureThreshold.round();
+              } else if (rawMoistureThreshold is String) {
+                currentMoistureThresholdInt =
+                    int.tryParse(rawMoistureThreshold) ?? 50;
+              }
+              _moistureSliderValue = currentMoistureThresholdInt.toDouble();
+              _moistureThresholdController ??= TextEditingController();
+              if (_moistureThresholdController!.text !=
+                  currentMoistureThresholdInt.toString()) {
+                _moistureThresholdController!.text =
+                    currentMoistureThresholdInt.toString();
+              }
 
-                dynamic rawMoistureThreshold =
-                    moistureData['soilMoistureThreshold'];
-                int currentMoistureThresholdInt = 50;
-                if (rawMoistureThreshold is int) {
-                  currentMoistureThresholdInt = rawMoistureThreshold;
-                } else if (rawMoistureThreshold is double) {
-                  currentMoistureThresholdInt = rawMoistureThreshold.round();
-                } else if (rawMoistureThreshold is String) {
-                  currentMoistureThresholdInt =
-                      int.tryParse(rawMoistureThreshold) ?? 50;
-                }
-                _moistureSliderValue = currentMoistureThresholdInt.toDouble();
-                if (_moistureThresholdController!.text !=
-                        currentMoistureThresholdInt.toString() ||
-                    !_moistureFieldsInitialized) {
-                  _moistureThresholdController!.text =
-                      currentMoistureThresholdInt.toString();
-                }
-
-                dynamic rawMoisturePumpDuration =
-                    moistureData['pumpDurationWhenDry'];
-                int currentMoisturePumpDuration = 30;
-                if (rawMoisturePumpDuration is int) {
-                  currentMoisturePumpDuration = rawMoisturePumpDuration;
-                } else if (rawMoisturePumpDuration is String) {
-                  currentMoisturePumpDuration =
-                      int.tryParse(rawMoisturePumpDuration) ?? 30;
-                } else if (rawMoisturePumpDuration is double) {
-                  currentMoisturePumpDuration = rawMoisturePumpDuration.toInt();
-                }
-                if (_moisturePumpDurationController!.text !=
-                        currentMoisturePumpDuration.toString() ||
-                    !_moistureFieldsInitialized) {
-                  _moisturePumpDurationController!.text =
-                      currentMoisturePumpDuration.toString();
-                }
-                _moistureFieldsInitialized = true;
+              dynamic rawMoisturePumpDuration = moistureData['d'];
+              int currentMoisturePumpDuration = 30;
+              if (rawMoisturePumpDuration is int) {
+                currentMoisturePumpDuration = rawMoisturePumpDuration;
+              } else if (rawMoisturePumpDuration is String) {
+                currentMoisturePumpDuration =
+                    int.tryParse(rawMoisturePumpDuration) ?? 30;
+              } else if (rawMoisturePumpDuration is double) {
+                currentMoisturePumpDuration = rawMoisturePumpDuration.toInt();
+              }
+              _moisturePumpDurationController ??= TextEditingController();
+              if (_moisturePumpDurationController!.text !=
+                  currentMoisturePumpDuration.toString()) {
+                _moisturePumpDurationController!.text =
+                    currentMoisturePumpDuration.toString();
               }
 
               final scheduledData =
-                  _deviceData?['scheduledWatering'] as Map<dynamic, dynamic>? ??
-                      {};
+                  _deviceData?['sw'] as Map<dynamic, dynamic>? ?? {};
               _scheduledWateringEnabled =
-                  scheduledData['enabled'] as bool? ?? false;
+                  (scheduledData['en'] as int? ?? 0) == 1;
+
+              _isPumpManuallyDisabledByAutomation =
+                  _moistureBasedEnabled || _scheduledWateringEnabled;
             }
           } else {
             _deviceData = null;
@@ -1140,10 +1283,10 @@ class __DeviceControlSheetContentState
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildTitlePlaceholder(isActuallyLoading: true, fontSize: 20),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           GridView.count(
             shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
+            physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
             mainAxisSpacing: 18,
             crossAxisSpacing: 18,
@@ -1180,7 +1323,7 @@ class __DeviceControlSheetContentState
                         children: [
                           _buildPlaceholderContainer(18,
                               width: 80, radius: 4, color: Colors.grey[200]!),
-                          SizedBox(height: 4),
+                          const SizedBox(height: 4),
                           _buildPlaceholderContainer(14,
                               width: 60, radius: 4, color: Colors.grey[200]!),
                         ],
@@ -1191,7 +1334,7 @@ class __DeviceControlSheetContentState
               );
             }),
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
         ],
       ),
     );
@@ -1258,7 +1401,6 @@ class __DeviceControlSheetContentState
           _buildTitlePlaceholder(
               isActuallyLoading: true, fontSize: titleFontSize),
           const SizedBox(height: 10),
-          // Sensor Info Card
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 6.0),
             child: Card(
@@ -1272,13 +1414,13 @@ class __DeviceControlSheetContentState
                   children: [
                     _buildPlaceholderContainer(cardTitleFontSize * 1.2,
                         width: 150, radius: 4, color: Colors.grey[300]),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     _buildPlaceholderContainer(regularTextFontSize * 1.2,
                         width: 200, radius: 3, color: Colors.grey[300]),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     _buildPlaceholderContainer(regularTextFontSize * 1.2,
                         width: 220, radius: 3, color: Colors.grey[300]),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     _buildPlaceholderContainer(regularTextFontSize * 1.2,
                         width: 180, radius: 3, color: Colors.grey[300]),
                   ],
@@ -1287,7 +1429,6 @@ class __DeviceControlSheetContentState
             ),
           ),
           const SizedBox(height: 15),
-          // Manual Relays
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: _buildPlaceholderContainer(sectionTitleFontSize * 1.2,
@@ -1298,7 +1439,7 @@ class __DeviceControlSheetContentState
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: GridView.count(
               shrinkWrap: true,
-              physics: NeverScrollableScrollPhysics(),
+              physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 2,
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
@@ -1333,7 +1474,7 @@ class __DeviceControlSheetContentState
                                       color: Colors.grey[200]),
                                 ],
                               ),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -1341,7 +1482,7 @@ class __DeviceControlSheetContentState
                                       width: 80,
                                       radius: 3,
                                       color: Colors.grey[200]),
-                                  SizedBox(height: 3),
+                                  const SizedBox(height: 3),
                                   _buildPlaceholderContainer(11.5 * 1.2,
                                       width: 60,
                                       radius: 3,
@@ -1354,7 +1495,6 @@ class __DeviceControlSheetContentState
                       )),
             ),
           ),
-          // Placeholder for Moisture-Based Watering
           Divider(
               height: 30,
               thickness: 1,
@@ -1366,7 +1506,7 @@ class __DeviceControlSheetContentState
             child: _buildPlaceholderContainer(sectionTitleFontSize * 1.2,
                 width: 200, radius: 4, color: Colors.grey[300]),
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 4.0),
             child: Card(
@@ -1385,24 +1525,24 @@ class __DeviceControlSheetContentState
                               width: double.infinity,
                               radius: 4,
                               color: Colors.grey[300])),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       _buildPlaceholderContainer(20,
                           width: 45, radius: 10, color: Colors.grey[300])
                     ]),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     _buildPlaceholderContainer(regularTextFontSize * 1.2,
                         width: 200, radius: 3, color: Colors.grey[300]),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     _buildPlaceholderContainer(48.0 - 28,
                         width: double.infinity,
                         radius: 4,
                         color: Colors.grey[300]),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     Row(children: [
                       Expanded(
                           child: _buildPlaceholderContainer(60.0 - 28,
                               radius: 6, color: Colors.grey[300])),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Expanded(
                           child: _buildPlaceholderContainer(60.0 - 28,
                               radius: 6, color: Colors.grey[300]))
@@ -1412,8 +1552,6 @@ class __DeviceControlSheetContentState
               ),
             ),
           ),
-
-          // Placeholder for Scheduled Watering
           Divider(
               height: 30,
               thickness: 1,
@@ -1432,7 +1570,7 @@ class __DeviceControlSheetContentState
               ],
             ),
           ),
-          SizedBox(height: 6.0),
+          const SizedBox(height: 6.0),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
             child: Card(
@@ -1451,7 +1589,7 @@ class __DeviceControlSheetContentState
                       children: [
                         _buildPlaceholderContainer(18 * 1.2,
                             width: 100, radius: 3, color: Colors.grey[200]),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         _buildPlaceholderContainer(13 * 1.2,
                             width: 150, radius: 3, color: Colors.grey[200]),
                       ],
@@ -1459,7 +1597,7 @@ class __DeviceControlSheetContentState
                   )),
             ),
           ),
-          SizedBox(height: 6.0),
+          const SizedBox(height: 6.0),
           Padding(
             padding: const EdgeInsets.only(right: 8.0, bottom: 8.0),
             child: Align(
@@ -1511,7 +1649,7 @@ class __DeviceControlSheetContentState
         child: Container(
           width: buttonWidth,
           height: buttonHeight,
-          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: currentBgColor,
             borderRadius: BorderRadius.circular(20),
@@ -1538,7 +1676,7 @@ class __DeviceControlSheetContentState
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 30, color: currentFgColor),
-              SizedBox(height: 5),
+              const SizedBox(height: 5),
               Text(label,
                   style: TextStyle(
                       color: currentFgColor,
@@ -1551,8 +1689,9 @@ class __DeviceControlSheetContentState
     );
   }
 
-  Widget _buildScheduledWateringList(BuildContext context, Map schedulesData) {
-    if (schedulesData.isEmpty) {
+  Widget _buildScheduledWateringList(
+      BuildContext context, List<dynamic>? schedulesList) {
+    if (schedulesList == null || schedulesList.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
         child: Center(
@@ -1560,7 +1699,7 @@ class __DeviceControlSheetContentState
           children: [
             Icon(Icons.calendar_month_outlined,
                 size: 40, color: Colors.grey[400]),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Text("Chưa có lịch tưới nào được thiết lập.",
                 style: TextStyle(
                     fontSize: 15,
@@ -1570,28 +1709,42 @@ class __DeviceControlSheetContentState
         )),
       );
     }
-    List<Widget> scheduleWidgets = [];
-    List<MapEntry<dynamic, dynamic>> sortedSchedules =
-        schedulesData.entries.toList()
-          ..sort((a, b) {
-            final timeA = a.value['time'] as String?;
-            final timeB = b.value['time'] as String?;
-            if (timeA == null && timeB == null) return 0;
-            if (timeA == null) return -1;
-            if (timeB == null) return 1;
-            return timeA.compareTo(timeB);
-          });
 
-    for (var entry in sortedSchedules) {
-      final scheduleId = entry.key as String;
-      final details = entry.value as Map<dynamic, dynamic>;
-      final bool itemIsActive = details['isActive'] as bool? ?? true;
-      final bool itemCheckSoil = details['checkSoilMoisture'] as bool? ?? false;
-      final int itemThreshold = details['soilMoistureThreshold'] as int? ?? 30;
+    schedulesList.sort((a, b) {
+      final scheduleA = a as Map<dynamic, dynamic>? ?? {};
+      final scheduleB = b as Map<dynamic, dynamic>? ?? {};
+      final timeA = scheduleA['t'] as String?;
+      final timeB = scheduleB['t'] as String?;
+      if (timeA == null && timeB == null) return 0;
+      if (timeA == null)
+        return -1; // Sort nulls to the beginning or end as desired
+      if (timeB == null) return 1;
+      return timeA.compareTo(timeB);
+    });
+
+    List<Widget> scheduleWidgets = [];
+    for (var scheduleData in schedulesList) {
+      // Ensure scheduleData is a Map
+      if (scheduleData is! Map) continue;
+      final details = Map<String, dynamic>.from(scheduleData);
+
+      // Use the 'id' field from the schedule data itself
+      final String? scheduleItemId = details['id'] as String?;
+      if (scheduleItemId == null) {
+        // If 'id' is missing, skip or log this item, as it can't be reliably managed.
+        // For robustness, you might want to assign a temporary ID or handle this case.
+        // For now, we'll skip it to avoid errors.
+        print("Warning: Schedule item missing 'id': $details");
+        continue;
+      }
+
+      final bool itemIsActive = (details['act'] as int? ?? 1) == 1;
+      final bool itemCheckSoil = (details['csm'] as int? ?? 0) == 1;
+      final int itemThreshold = details['th'] as int? ?? 30;
 
       scheduleWidgets.add(Card(
           elevation: itemIsActive ? 2.0 : 1.0,
-          margin: EdgeInsets.symmetric(vertical: 6.0, horizontal: 0),
+          margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 0),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           color: itemIsActive
@@ -1610,12 +1763,12 @@ class __DeviceControlSheetContentState
                             ? Theme.of(context).colorScheme.primary
                             : Colors.grey.shade500,
                         size: 24),
-                    SizedBox(width: 10),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text("${details['time'] ?? 'N/A'}",
+                          Text("${details['t'] ?? 'N/A'}",
                               style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
@@ -1625,9 +1778,8 @@ class __DeviceControlSheetContentState
                                           .titleMedium
                                           ?.color
                                       : Colors.grey.shade700)),
-                          SizedBox(height: 1),
-                          Text(
-                              "Bơm: ${details['durationSeconds'] ?? '--'} giây.",
+                          const SizedBox(height: 1),
+                          Text("Bơm: ${details['d'] ?? '--'} giây.",
                               style: TextStyle(
                                   fontSize: 12.5,
                                   color: itemIsActive
@@ -1664,39 +1816,51 @@ class __DeviceControlSheetContentState
                               color: Theme.of(context).colorScheme.secondary,
                               size: 18),
                           tooltip: "Sửa lịch",
-                          padding: EdgeInsets.all(3),
-                          constraints: BoxConstraints(),
+                          padding: const EdgeInsets.all(3),
+                          constraints: const BoxConstraints(),
                           onPressed: () {
                             _showAddEditScheduleDialog(context, widget.deviceId,
                                 widget.databaseReference,
-                                scheduleId: scheduleId, initialData: details);
+                                scheduleId:
+                                    scheduleItemId, // Pass the item's 'id'
+                                initialData: details);
                           },
                         ),
                         IconButton(
                           icon: Icon(Icons.delete_forever_outlined,
                               color: Colors.redAccent.shade100, size: 18),
                           tooltip: "Xóa lịch",
-                          padding: EdgeInsets.all(3),
-                          constraints: BoxConstraints(),
+                          padding: const EdgeInsets.all(3),
+                          constraints: const BoxConstraints(),
                           onPressed: () {
                             showDialog(
                               context: context,
                               builder: (ctx) => AlertDialog(
-                                title: Text("Xác nhận xóa lịch"),
+                                title: const Text("Xác nhận xóa lịch"),
                                 content: Text(
-                                    "Bạn có chắc muốn xóa lịch tưới lúc ${details['time'] ?? ''}? Hành động này không thể hoàn tác."),
+                                    "Bạn có chắc muốn xóa lịch tưới lúc ${details['t'] ?? ''}?"),
                                 actions: [
                                   TextButton(
-                                      child: Text("Hủy"),
+                                      child: const Text("Hủy"),
                                       onPressed: () => Navigator.of(ctx).pop()),
                                   TextButton(
-                                    child: Text("Xóa",
+                                    child: const Text("Xóa",
                                         style: TextStyle(color: Colors.red)),
                                     onPressed: () {
+                                      final currentSchedules =
+                                          List<Map<dynamic, dynamic>>.from(
+                                              _deviceData?['sw']?['sc']
+                                                      as List<dynamic>? ??
+                                                  []);
+
+                                      // Remove based on the schedule item's ID
+                                      currentSchedules.removeWhere((s) =>
+                                          (s as Map)['id'] == scheduleItemId);
+
                                       widget.databaseReference
                                           .child(
-                                              'devices/${widget.deviceId}/scheduledWatering/schedules/$scheduleId')
-                                          .remove();
+                                              'devices/${widget.deviceId}/sw/sc')
+                                          .set(currentSchedules);
                                       Navigator.of(ctx).pop();
                                     },
                                   ),
@@ -1713,7 +1877,8 @@ class __DeviceControlSheetContentState
                   children: [
                     Expanded(
                       child: CheckboxListTile(
-                        contentPadding: EdgeInsets.only(left: 0, right: -8),
+                        contentPadding:
+                            const EdgeInsets.only(left: 0, right: -8),
                         dense: true,
                         visualDensity: VisualDensity.compact,
                         title: Text("Kích hoạt",
@@ -1726,10 +1891,22 @@ class __DeviceControlSheetContentState
                         value: itemIsActive,
                         onChanged: (bool? value) {
                           if (value != null) {
-                            widget.databaseReference
-                                .child(
-                                    'devices/${widget.deviceId}/scheduledWatering/schedules/$scheduleId')
-                                .update({'isActive': value});
+                            final currentSchedules =
+                                List<Map<dynamic, dynamic>>.from(
+                                    _deviceData?['sw']?['sc']
+                                            as List<dynamic>? ??
+                                        []);
+
+                            // Find and update the item by ID
+                            int itemIndex = currentSchedules.indexWhere(
+                                (s) => (s as Map)['id'] == scheduleItemId);
+                            if (itemIndex != -1) {
+                              currentSchedules[itemIndex]['act'] =
+                                  value ? 1 : 0;
+                              widget.databaseReference
+                                  .child('devices/${widget.deviceId}/sw/sc')
+                                  .set(currentSchedules);
+                            }
                           }
                         },
                         controlAffinity: ListTileControlAffinity.leading,
@@ -1738,7 +1915,8 @@ class __DeviceControlSheetContentState
                     ),
                     Expanded(
                       child: CheckboxListTile(
-                        contentPadding: EdgeInsets.only(left: 0, right: 0),
+                        contentPadding:
+                            const EdgeInsets.only(left: 0, right: 0),
                         dense: true,
                         visualDensity: VisualDensity.compact,
                         title: Text("Theo độ ẩm",
@@ -1751,10 +1929,20 @@ class __DeviceControlSheetContentState
                         value: itemCheckSoil,
                         onChanged: (bool? value) {
                           if (value != null) {
-                            widget.databaseReference
-                                .child(
-                                    'devices/${widget.deviceId}/scheduledWatering/schedules/$scheduleId')
-                                .update({'checkSoilMoisture': value});
+                            final currentSchedules =
+                                List<Map<dynamic, dynamic>>.from(
+                                    _deviceData?['sw']?['sc']
+                                            as List<dynamic>? ??
+                                        []);
+                            int itemIndex = currentSchedules.indexWhere(
+                                (s) => (s as Map)['id'] == scheduleItemId);
+                            if (itemIndex != -1) {
+                              currentSchedules[itemIndex]['csm'] =
+                                  value ? 1 : 0;
+                              widget.databaseReference
+                                  .child('devices/${widget.deviceId}/sw/sc')
+                                  .set(currentSchedules);
+                            }
                           }
                         },
                         controlAffinity: ListTileControlAffinity.leading,
@@ -1774,22 +1962,28 @@ class __DeviceControlSheetContentState
     BuildContext context,
     String deviceId,
     DatabaseReference dbRef, {
-    String? scheduleId,
+    String? scheduleId, // This is the 'id' field of the schedule item
     Map<dynamic, dynamic>? initialData,
+    @Deprecated('Use scheduleId to find item in list instead')
+    int?
+        scheduleIndex, // Kept for compatibility, but logic should prefer scheduleId
   }) {
     final formKey = GlobalKey<FormState>();
     TimeOfDay? selectedTime;
     String dialogTitle =
-        scheduleId == null ? "Thêm Lịch Tưới Mới" : "Chỉnh Sửa Lịch Tưới";
+        initialData == null ? "Thêm Lịch Tưới Mới" : "Chỉnh Sửa Lịch Tưới";
 
     bool initialIsActive = true;
     bool initialCheckSoil = false;
     int initialSoilThreshold = 30;
+    String? currentScheduleId =
+        scheduleId; // Use the passed scheduleId if editing
 
     if (initialData != null) {
-      if (initialData['time'] != null) {
+      // currentScheduleId should already be set if initialData is not null
+      if (initialData['t'] != null) {
         try {
-          final parts = (initialData['time'] as String).split(':');
+          final parts = (initialData['t'] as String).split(':');
           selectedTime =
               TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
         } catch (e) {
@@ -1798,16 +1992,17 @@ class __DeviceControlSheetContentState
       } else {
         selectedTime = TimeOfDay.now();
       }
-      initialIsActive = initialData['isActive'] as bool? ?? true;
-      initialCheckSoil = initialData['checkSoilMoisture'] as bool? ?? false;
-      initialSoilThreshold = initialData['soilMoistureThreshold'] as int? ?? 30;
+      initialIsActive = (initialData['act'] as int? ?? 1) == 1;
+      initialCheckSoil = (initialData['csm'] as int? ?? 0) == 1;
+      initialSoilThreshold = initialData['th'] as int? ?? 30;
     } else {
-      selectedTime = TimeOfDay(hour: 6, minute: 0);
+      selectedTime = const TimeOfDay(hour: 6, minute: 0);
+      // For new schedules, currentScheduleId will be null initially,
+      // and a new one will be generated on save.
     }
 
     final TextEditingController durationSecondsController =
-        TextEditingController(
-            text: initialData?['durationSeconds']?.toString() ?? '30');
+        TextEditingController(text: initialData?['d']?.toString() ?? '30');
 
     final TextEditingController scheduleThresholdController =
         TextEditingController(text: initialSoilThreshold.toString());
@@ -1823,13 +2018,13 @@ class __DeviceControlSheetContentState
           return AlertDialog(
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-            titlePadding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+            titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
             title: Text(dialogTitle,
                 style: TextStyle(
                     fontSize: 19,
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.primary)),
-            contentPadding: EdgeInsets.fromLTRB(20, 10, 20, 8),
+            contentPadding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
             content: Form(
                 key: formKey,
                 child: SingleChildScrollView(
@@ -1845,7 +2040,7 @@ class __DeviceControlSheetContentState
                                   .textTheme
                                   .bodyMedium
                                   ?.color)),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       InkWell(
                           onTap: () async {
                             final TimeOfDay? picked = await showTimePicker(
@@ -1889,7 +2084,7 @@ class __DeviceControlSheetContentState
                             }
                           },
                           child: Container(
-                            padding: EdgeInsets.symmetric(
+                            padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 12),
                             decoration: BoxDecoration(
                                 border: Border.all(color: Colors.grey.shade400),
@@ -1903,7 +2098,7 @@ class __DeviceControlSheetContentState
                                 Text(
                                     selectedTime?.format(context) ??
                                         'Chưa chọn',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                         fontSize: 16.5,
                                         fontWeight: FontWeight.w500)),
                                 Icon(Icons.arrow_drop_down_circle_outlined,
@@ -1911,7 +2106,7 @@ class __DeviceControlSheetContentState
                               ],
                             ),
                           )),
-                      SizedBox(height: 18),
+                      const SizedBox(height: 18),
                       Text("Thời lượng bơm (giây):",
                           style: TextStyle(
                               fontWeight: FontWeight.w500,
@@ -1920,27 +2115,29 @@ class __DeviceControlSheetContentState
                                   .textTheme
                                   .bodyMedium
                                   ?.color)),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       TextFormField(
                         controller: durationSecondsController,
                         decoration: InputDecoration(
                             hintText: "VD: 30",
                             border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10)),
-                            contentPadding: EdgeInsets.symmetric(
+                            contentPadding: const EdgeInsets.symmetric(
                                 vertical: 14.0, horizontal: 16.0),
-                            prefixIcon: Icon(Icons.timer_outlined, size: 20)),
+                            prefixIcon:
+                                const Icon(Icons.timer_outlined, size: 20)),
                         keyboardType: TextInputType.number,
                         validator: (value) {
-                          if (value == null || value.isEmpty)
+                          if (value == null || value.isEmpty) {
                             return 'Không được để trống';
+                          }
                           final n = int.tryParse(value);
                           if (n == null || n <= 0) return 'Phải là số dương';
                           if (n > 600) return 'Tối đa 600 giây (10 phút)';
                           return null;
                         },
                       ),
-                      SizedBox(height: 12),
+                      const SizedBox(height: 12),
                       CheckboxListTile(
                         title: Text("Kích hoạt lịch này",
                             style: TextStyle(
@@ -1958,7 +2155,8 @@ class __DeviceControlSheetContentState
                           }
                         },
                         controlAffinity: ListTileControlAffinity.leading,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 0),
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 0),
                         dense: true,
                         activeColor: Theme.of(context).primaryColor,
                       ),
@@ -1983,12 +2181,13 @@ class __DeviceControlSheetContentState
                           }
                         },
                         controlAffinity: ListTileControlAffinity.leading,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 0),
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 0),
                         dense: true,
                         activeColor: Theme.of(context).primaryColor,
                       ),
                       if (currentCheckSoil) ...[
-                        SizedBox(height: 12),
+                        const SizedBox(height: 12),
                         Text(
                             "Ngưỡng ẩm cho lịch này: ${currentScheduleSliderValue.round()}%",
                             style: TextStyle(
@@ -2021,7 +2220,7 @@ class __DeviceControlSheetContentState
                             hintText: "0-100",
                             border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10)),
-                            contentPadding: EdgeInsets.symmetric(
+                            contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 14),
                           ),
                           keyboardType: TextInputType.number,
@@ -2040,38 +2239,41 @@ class __DeviceControlSheetContentState
                             }
                           },
                           validator: (value) {
-                            if (value == null || value.isEmpty)
+                            if (value == null || value.isEmpty) {
                               return 'Nhập ngưỡng';
+                            }
                             final n = int.tryParse(value);
                             if (n == null || n < 0 || n > 100) return '0-100';
                             return null;
                           },
                         ),
-                        SizedBox(height: 10),
+                        const SizedBox(height: 10),
                       ]
                     ],
                   ),
                 )),
             actionsAlignment: MainAxisAlignment.end,
-            actionsPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            actionsPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             actions: [
               TextButton(
                   style: TextButton.styleFrom(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 18, vertical: 10)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 10)),
                   child: Text("HỦY",
                       style: TextStyle(
                           color: Colors.grey[700],
                           fontWeight: FontWeight.w600)),
                   onPressed: () => Navigator.of(ctx).pop()),
               ElevatedButton.icon(
-                icon: Icon(Icons.save_alt_rounded, size: 20),
-                label: Text("LƯU LỊCH",
+                icon: const Icon(Icons.save_alt_rounded, size: 20),
+                label: const Text("LƯU LỊCH",
                     style: TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).primaryColor,
                     foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10))),
                 onPressed: () {
@@ -2082,32 +2284,65 @@ class __DeviceControlSheetContentState
                         int.parse(scheduleThresholdController.text);
 
                     final Map<String, dynamic> newScheduleData = {
-                      'time':
+                      // 'id' will be handled below
+                      't':
                           '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}',
-                      'durationSeconds': duration,
-                      'isActive': currentIsActive,
-                      'checkSoilMoisture': currentCheckSoil,
-                      'soilMoistureThreshold': currentCheckSoil
+                      'd': duration,
+                      'act': currentIsActive ? 1 : 0,
+                      'csm': currentCheckSoil ? 1 : 0,
+                      'th': currentCheckSoil
                           ? scheduleThreshold
-                          : initialData?['soilMoistureThreshold'] ?? 30,
+                          : (initialData?['th'] ?? 30),
                     };
 
-                    String currentScheduleId = scheduleId ??
-                        dbRef
-                            .child(
-                                'devices/$deviceId/scheduledWatering/schedules')
-                            .push()
-                            .key!;
-
                     dbRef
-                        .child(
-                            'devices/$deviceId/scheduledWatering/schedules/$currentScheduleId')
-                        .set(newScheduleData);
+                        .child('devices/$deviceId/sw/sc')
+                        .once()
+                        .then((snapshot) {
+                      List<dynamic> currentSchedulesDynamic = [];
+                      if (snapshot.snapshot.value != null &&
+                          snapshot.snapshot.value is List) {
+                        currentSchedulesDynamic =
+                            snapshot.snapshot.value as List<dynamic>;
+                      }
+                      List<Map<dynamic, dynamic>> currentSchedules =
+                          List<Map<dynamic, dynamic>>.from(
+                              currentSchedulesDynamic.map((item) {
+                        if (item is Map) {
+                          return Map<String, dynamic>.from(
+                              item.map((k, v) => MapEntry(k.toString(), v)));
+                        }
+                        return {}; // Should not happen if data is correct
+                      }).where((item) => item.isNotEmpty));
+
+                      if (currentScheduleId != null) {
+                        // Editing existing schedule
+                        newScheduleData['id'] =
+                            currentScheduleId; // Preserve original ID
+                        int existingIndex = currentSchedules.indexWhere(
+                            (s) => (s as Map)['id'] == currentScheduleId);
+                        if (existingIndex != -1) {
+                          currentSchedules[existingIndex] = newScheduleData;
+                        } else {
+                          // ID not found, treat as new? Or error? For now, add.
+                          newScheduleData['id'] =
+                              _generateShortId(); // Should not happen if currentScheduleId was from a valid item
+                          currentSchedules.add(newScheduleData);
+                        }
+                      } else {
+                        // Adding new schedule
+                        newScheduleData['id'] = _generateShortId();
+                        currentSchedules.add(newScheduleData);
+                      }
+                      dbRef
+                          .child('devices/$deviceId/sw/sc')
+                          .set(currentSchedules);
+                    });
                     Navigator.of(ctx).pop();
                   } else if (selectedTime == null) {
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("Vui lòng chọn giờ tưới.")));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text("Vui lòng chọn giờ tưới.")));
                     }
                   }
                 },
@@ -2136,10 +2371,10 @@ class __DeviceControlSheetContentState
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildTitlePlaceholder(isActuallyLoading: true),
-            SizedBox(
+            const SizedBox(
               height: 250,
               width: double.infinity,
-              child: const Center(child: CircularProgressIndicator()),
+              child: Center(child: CircularProgressIndicator()),
             )
           ],
         );
@@ -2156,13 +2391,13 @@ class __DeviceControlSheetContentState
             child: Center(
                 child: Column(
               children: [
-                Icon(Icons.error_outline_rounded,
+                const Icon(Icons.error_outline_rounded,
                     color: Colors.redAccent, size: 50),
-                SizedBox(height: 15),
-                Text('Đã xảy ra lỗi',
+                const SizedBox(height: 15),
+                const Text('Đã xảy ra lỗi',
                     style:
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(_error!,
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 15, color: Colors.grey[700])),
@@ -2185,7 +2420,7 @@ class __DeviceControlSheetContentState
               children: [
                 Icon(Icons.search_off_rounded,
                     color: Colors.grey[400], size: 50),
-                SizedBox(height: 15),
+                const SizedBox(height: 15),
                 Text('Không tìm thấy dữ liệu cho thiết bị này.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 16, color: Colors.grey[700])),
@@ -2196,12 +2431,6 @@ class __DeviceControlSheetContentState
       );
     } else {
       final deviceData = _deviceData!;
-      bool isAutoWateringActive = false;
-
-      if (widget.deviceId.startsWith('CamBienNhietDoAm')) {
-        isAutoWateringActive =
-            _moistureBasedEnabled || _scheduledWateringEnabled;
-      }
 
       if (widget.deviceId.startsWith('CongTac')) {
         content = SingleChildScrollView(
@@ -2216,7 +2445,7 @@ class __DeviceControlSheetContentState
               const SizedBox(height: 20),
               GridView.count(
                 shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
+                physics: const NeverScrollableScrollPhysics(),
                 crossAxisCount: 2,
                 mainAxisSpacing: 18,
                 crossAxisSpacing: 18,
@@ -2224,100 +2453,20 @@ class __DeviceControlSheetContentState
                 children: List.generate(4, (index) {
                   final switchId = 'D${index + 1}';
                   final switchStatus = deviceData[switchId] == 'on';
-                  return Card(
-                    elevation: switchStatus ? 5 : 2.5,
-                    margin: EdgeInsets.zero,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(22)),
-                    color: switchStatus
-                        ? Theme.of(context).primaryColor.withOpacity(0.85)
-                        : Theme.of(context).cardColor,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(22),
-                      onTap: () {
-                        bool newValue = !switchStatus;
-                        widget.databaseReference
-                            .child('devices/${widget.deviceId}')
-                            .update({switchId: newValue ? 'on' : 'off'});
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: switchStatus
-                                        ? Colors.white.withOpacity(0.25)
-                                        : Theme.of(context)
-                                            .primaryColor
-                                            .withOpacity(0.1),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(Icons.power_rounded,
-                                      size: 28,
-                                      color: switchStatus
-                                          ? Colors.white
-                                          : Theme.of(context).primaryColor),
-                                ),
-                                Transform.scale(
-                                    scale: 0.9,
-                                    alignment: Alignment.topRight,
-                                    child: Switch(
-                                      value: switchStatus,
-                                      onChanged: (value) {
-                                        widget.databaseReference
-                                            .child('devices/${widget.deviceId}')
-                                            .update({
-                                          switchId: value ? 'on' : 'off'
-                                        });
-                                      },
-                                      activeColor: Colors.white,
-                                      activeTrackColor:
-                                          Colors.white.withOpacity(0.5),
-                                      inactiveThumbColor: Colors.grey.shade400,
-                                      inactiveTrackColor: Colors.grey.shade200,
-                                    )),
-                              ],
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Thiết bị ${index + 1}',
-                                    style: TextStyle(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.bold,
-                                        color: switchStatus
-                                            ? Colors.white
-                                            : Theme.of(context)
-                                                .textTheme
-                                                .titleLarge
-                                                ?.color)),
-                                SizedBox(height: 2),
-                                Text(switchStatus ? "ĐANG BẬT" : "ĐANG TẮT",
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        letterSpacing: 0.5,
-                                        color: switchStatus
-                                            ? Colors.white.withOpacity(0.85)
-                                            : Colors.grey[600])),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  return widget.buildRelayControlTileCallback(
+                    context,
+                    widget.deviceId,
+                    widget.currentUser,
+                    widget.databaseReference,
+                    'Thiết bị ${index + 1}',
+                    switchId,
+                    switchStatus,
+                    0, // Not applicable for CongTac
+                    Icons.power_settings_new_rounded,
                   );
                 }),
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
             ],
           ),
         );
@@ -2352,7 +2501,7 @@ class __DeviceControlSheetContentState
                         .child('devices/${widget.deviceId}')
                         .update({'up': 'off'});
                   }),
-                  SizedBox(width: 16.0),
+                  const SizedBox(width: 16.0),
                   _buildCuaCuonButton(context,
                       label: "Đóng Xuống",
                       icon: Icons.keyboard_double_arrow_down_rounded,
@@ -2370,9 +2519,9 @@ class __DeviceControlSheetContentState
               ),
               const SizedBox(height: 25),
               ElevatedButton.icon(
-                icon: Icon(Icons.stop_screen_share_rounded,
+                icon: const Icon(Icons.stop_screen_share_rounded,
                     color: Colors.white, size: 34),
-                label: Text("DỪNG",
+                label: const Text("DỪNG",
                     style: TextStyle(
                         fontSize: 20,
                         color: Colors.white,
@@ -2381,7 +2530,8 @@ class __DeviceControlSheetContentState
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
                       stopStatus ? Colors.red.shade600 : Colors.red.shade400,
-                  padding: EdgeInsets.symmetric(horizontal: 60, vertical: 22),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 60, vertical: 22),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20)),
                   elevation: stopStatus ? 5 : 10,
@@ -2397,11 +2547,9 @@ class __DeviceControlSheetContentState
           ),
         );
       } else if (widget.deviceId.startsWith('CamBienNhietDoAm')) {
-        final Map<dynamic, dynamic> schedulesMap =
-            (_deviceData?['scheduledWatering']
-                        as Map<dynamic, dynamic>?)?['schedules']
-                    as Map<dynamic, dynamic>? ??
-                {};
+        final List<dynamic>? schedulesListRaw = (_deviceData?['sw']
+            as Map<dynamic, dynamic>?)?['sc'] as List<dynamic>?;
+        final List<dynamic> schedulesList = schedulesListRaw ?? [];
 
         content = SingleChildScrollView(
           key: ValueKey('CamBien-${widget.deviceId}'),
@@ -2429,14 +2577,14 @@ class __DeviceControlSheetContentState
                                   fontWeight: FontWeight.w600,
                                   color:
                                       Theme.of(context).colorScheme.secondary)),
-                          SizedBox(height: 12),
+                          const SizedBox(height: 12),
                           Row(children: [
-                            Icon(FontAwesomeIcons.thermometerHalf,
+                            const Icon(FontAwesomeIcons.thermometerHalf,
                                 color: Colors.redAccent, size: 20),
-                            SizedBox(width: 12),
+                            const SizedBox(width: 12),
                             Expanded(
                                 child: Text(
-                                    "Nhiệt độ: ${deviceData['temperature'] ?? '--'} °C",
+                                    "Nhiệt độ: ${deviceData['t'] ?? '--'} °C",
                                     style: TextStyle(
                                         fontSize: 16,
                                         color: Theme.of(context)
@@ -2444,14 +2592,14 @@ class __DeviceControlSheetContentState
                                             .bodyLarge
                                             ?.color)))
                           ]),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Row(children: [
-                            Icon(FontAwesomeIcons.water,
+                            const Icon(FontAwesomeIcons.water,
                                 color: Colors.blueAccent, size: 20),
-                            SizedBox(width: 12),
+                            const SizedBox(width: 12),
                             Expanded(
                                 child: Text(
-                                    "Độ ẩm không khí: ${deviceData['humidity'] ?? '--'} %",
+                                    "Độ ẩm không khí: ${deviceData['hm'] ?? '--'} %",
                                     style: TextStyle(
                                         fontSize: 16,
                                         color: Theme.of(context)
@@ -2459,14 +2607,14 @@ class __DeviceControlSheetContentState
                                             .bodyLarge
                                             ?.color)))
                           ]),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Row(children: [
-                            Icon(FontAwesomeIcons.seedling,
-                                color: Colors.green.shade600, size: 20),
-                            SizedBox(width: 12),
+                            const Icon(FontAwesomeIcons.seedling,
+                                color: Colors.green, size: 20),
+                            const SizedBox(width: 12),
                             Expanded(
                                 child: Text(
-                                    "Độ ẩm đất: ${deviceData['soilMoisture'] ?? '--'} %",
+                                    "Độ ẩm đất: ${deviceData['sm'] ?? '--'} %",
                                     style: TextStyle(
                                         fontSize: 16,
                                         color: Theme.of(context)
@@ -2479,7 +2627,8 @@ class __DeviceControlSheetContentState
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8.0, vertical: 10.0),
                 child: Text("Điều khiển Relay Thủ Công",
                     style: TextStyle(
                         fontSize: 19,
@@ -2488,7 +2637,7 @@ class __DeviceControlSheetContentState
               ),
               GridView.count(
                 shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
+                physics: const NeverScrollableScrollPhysics(),
                 crossAxisCount: 2,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
@@ -2498,126 +2647,34 @@ class __DeviceControlSheetContentState
                   final String relayKey = relayInfo['key'];
                   final String relayName = relayInfo['name'];
                   final IconData relayIcon = relayInfo['icon'];
-                  bool switchStatus = false;
+                  int relayStatus = 0;
                   if (_deviceData != null && _deviceData![relayKey] != null) {
-                    if (_deviceData![relayKey] is bool) {
-                      switchStatus = _deviceData![relayKey] as bool;
+                    if (_deviceData![relayKey] is int) {
+                      relayStatus = _deviceData![relayKey] as int;
+                    } else if (_deviceData![relayKey] is bool) {
+                      relayStatus = (_deviceData![relayKey] as bool) ? 1 : 0;
                     } else if (_deviceData![relayKey] is String) {
-                      switchStatus = _deviceData![relayKey] == 'on';
+                      relayStatus = (_deviceData![relayKey] == 'on' ||
+                              _deviceData![relayKey] == '1')
+                          ? 1
+                          : 0;
                     }
                   }
+                  bool disableThisRelayByAutomation =
+                      (relayKey == 'wp' && _isPumpManuallyDisabledByAutomation);
 
-                  final bool isWaterPumpRelay = relayKey == 'water_pump';
-                  final bool buttonDisabled =
-                      isWaterPumpRelay && isAutoWateringActive;
-
-                  return Opacity(
-                    opacity: buttonDisabled ? 0.7 : 1.0,
-                    child: Card(
-                      elevation: switchStatus ? 6 : 3,
-                      margin: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24)),
-                      color: switchStatus
-                          ? Theme.of(context).primaryColor
-                          : Theme.of(context).cardColor,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(24),
-                        onTap: buttonDisabled
-                            ? null
-                            : () {
-                                bool newValue = !switchStatus;
-                                widget.databaseReference
-                                    .child('devices/${widget.deviceId}')
-                                    .update({relayKey: newValue});
-                              },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12.0, vertical: 16.0),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: switchStatus
-                                          ? Colors.white.withOpacity(0.2)
-                                          : Theme.of(context)
-                                              .primaryColor
-                                              .withOpacity(0.08),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(relayIcon,
-                                        size: 26,
-                                        color: switchStatus
-                                            ? Colors.white
-                                            : Theme.of(context)
-                                                .primaryColorDark),
-                                  ),
-                                  // MODIFIED: Switch is now always rendered
-                                  Switch(
-                                    value: switchStatus,
-                                    // MODIFIED: buttonDisabled also disables the switch's onChanged
-                                    onChanged: buttonDisabled
-                                        ? null
-                                        : (value) {
-                                            widget.databaseReference
-                                                .child(
-                                                    'devices/${widget.deviceId}')
-                                                .update({
-                                              relayKey: value
-                                            }); // value from Switch is boolean
-                                          },
-                                    activeColor: Colors.white,
-                                    activeTrackColor:
-                                        Colors.white.withOpacity(0.4),
-                                    inactiveThumbColor: Colors.grey.shade400,
-                                    inactiveTrackColor: Colors.grey.shade200,
-                                    materialTapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 8),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(relayName,
-                                      textAlign: TextAlign.left,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.bold,
-                                          color: switchStatus
-                                              ? Colors.white
-                                              : Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium
-                                                  ?.color)),
-                                  SizedBox(height: 3),
-                                  Text(switchStatus ? "ĐANG BẬT" : "ĐANG TẮT",
-                                      style: TextStyle(
-                                          fontSize: 11.5,
-                                          fontWeight: FontWeight.w600,
-                                          letterSpacing: 0.6,
-                                          color: switchStatus
-                                              ? Colors.white.withOpacity(0.9)
-                                              : Colors.grey.shade500)),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
+                  return widget.buildRelayControlTileCallback(
+                      context,
+                      widget.deviceId,
+                      widget.currentUser,
+                      widget.databaseReference,
+                      relayName,
+                      relayKey,
+                      false,
+                      relayStatus,
+                      relayIcon,
+                      isManuallyDisabledByAutomation:
+                          disableThisRelayByAutomation);
                 }).toList(),
               ),
               const SizedBox(height: 15),
@@ -2631,7 +2688,7 @@ class __DeviceControlSheetContentState
               ),
               Card(
                 elevation: 2,
-                margin: EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18)),
                 child: Padding(
@@ -2654,9 +2711,8 @@ class __DeviceControlSheetContentState
                             value: _moistureBasedEnabled,
                             onChanged: (bool value) {
                               widget.databaseReference
-                                  .child(
-                                      'devices/${widget.deviceId}/moistureBasedWatering/enabled')
-                                  .set(value);
+                                  .child('devices/${widget.deviceId}/mbw/en')
+                                  .set(value ? 1 : 0);
                             },
                             activeColor: Theme.of(context).primaryColor,
                             materialTapTargetSize:
@@ -2665,7 +2721,7 @@ class __DeviceControlSheetContentState
                         ],
                       ),
                       if (_moistureBasedEnabled) ...[
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text(
                             "Ngưỡng kích hoạt: ${_moistureSliderValue.round()}%",
                             style: TextStyle(
@@ -2684,19 +2740,16 @@ class __DeviceControlSheetContentState
                           inactiveColor:
                               Theme.of(context).primaryColor.withOpacity(0.3),
                           onChanged: (double value) {
-                            if (mounted) {
-                              setState(() {
-                                _moistureSliderValue = value;
-                                _moistureThresholdController?.text =
-                                    value.round().toString();
-                              });
-                            }
+                            setState(() {
+                              _moistureSliderValue = value;
+                              _moistureThresholdController?.text =
+                                  value.round().toString();
+                            });
                           },
                           onChangeEnd: (double value) {
                             int finalThreshold = value.round();
                             widget.databaseReference
-                                .child(
-                                    'devices/${widget.deviceId}/moistureBasedWatering/soilMoistureThreshold')
+                                .child('devices/${widget.deviceId}/mbw/th')
                                 .set(finalThreshold);
                           },
                         ),
@@ -2710,12 +2763,25 @@ class __DeviceControlSheetContentState
                                   isDense: true,
                                   border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8)),
-                                  contentPadding: EdgeInsets.symmetric(
+                                  contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 10, vertical: 10),
                                 ),
                                 keyboardType: TextInputType.number,
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 13),
+                                style: const TextStyle(fontSize: 13),
+                                onChanged: (String value) {
+                                  double? typedValue = double.tryParse(value);
+                                  if (typedValue != null &&
+                                      typedValue >= 0 &&
+                                      typedValue <= 100) {
+                                    if (_moistureSliderValue.round() !=
+                                        typedValue.round()) {
+                                      setState(() {
+                                        _moistureSliderValue = typedValue;
+                                      });
+                                    }
+                                  }
+                                },
                                 onFieldSubmitted: (String value) {
                                   int? threshold = int.tryParse(value);
                                   if (threshold != null &&
@@ -2723,11 +2789,10 @@ class __DeviceControlSheetContentState
                                       threshold <= 100) {
                                     widget.databaseReference
                                         .child(
-                                            'devices/${widget.deviceId}/moistureBasedWatering/soilMoistureThreshold')
+                                            'devices/${widget.deviceId}/mbw/th')
                                         .set(threshold);
                                     if (_moistureSliderValue.round() !=
-                                            threshold &&
-                                        mounted) {
+                                        threshold) {
                                       setState(() {
                                         _moistureSliderValue =
                                             threshold.toDouble();
@@ -2738,23 +2803,25 @@ class __DeviceControlSheetContentState
                                         _moistureSliderValue.round().toString();
                                     if (mounted) {
                                       ScaffoldMessenger.of(context)
-                                          .showSnackBar(SnackBar(
+                                          .showSnackBar(const SnackBar(
                                               content: Text(
                                                   "Ngưỡng ẩm không hợp lệ (0-100).")));
                                     }
                                   }
                                 },
                                 validator: (value) {
-                                  if (value == null || value.isEmpty)
+                                  if (value == null || value.isEmpty) {
                                     return 'Nhập';
+                                  }
                                   final n = int.tryParse(value);
-                                  if (n == null || n < 0 || n > 100)
+                                  if (n == null || n < 0 || n > 100) {
                                     return '0-100';
+                                  }
                                   return null;
                                 },
                               ),
                             ),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: TextFormField(
                                 controller: _moisturePumpDurationController,
@@ -2763,43 +2830,44 @@ class __DeviceControlSheetContentState
                                   isDense: true,
                                   border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8)),
-                                  contentPadding: EdgeInsets.symmetric(
+                                  contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 10, vertical: 10),
                                 ),
                                 keyboardType: TextInputType.number,
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 13),
+                                style: const TextStyle(fontSize: 13),
                                 onFieldSubmitted: (String value) {
                                   int? duration = int.tryParse(value);
                                   final currentDurationOnFirebase =
-                                      (_deviceData?['moistureBasedWatering']
-                                                  as Map?)?[
-                                              'pumpDurationWhenDry'] as int? ??
+                                      (_deviceData?['mbw'] as Map?)?['d']
+                                              as int? ??
                                           30;
                                   if (duration != null &&
                                       duration > 0 &&
                                       duration <= 600) {
                                     widget.databaseReference
                                         .child(
-                                            'devices/${widget.deviceId}/moistureBasedWatering/pumpDurationWhenDry')
+                                            'devices/${widget.deviceId}/mbw/d')
                                         .set(duration);
                                   } else {
                                     _moisturePumpDurationController?.text =
                                         currentDurationOnFirebase.toString();
                                     if (mounted) {
                                       ScaffoldMessenger.of(context)
-                                          .showSnackBar(SnackBar(
+                                          .showSnackBar(const SnackBar(
                                               content: Text(
                                                   "Thời gian bơm không hợp lệ (1-600 giây).")));
                                     }
                                   }
                                 },
                                 validator: (value) {
-                                  if (value == null || value.isEmpty)
+                                  if (value == null || value.isEmpty) {
                                     return 'Nhập';
+                                  }
                                   final n = int.tryParse(value);
-                                  if (n == null || n <= 0 || n > 600)
+                                  if (n == null || n <= 0 || n > 600) {
                                     return '1-600';
+                                  }
                                   return null;
                                 },
                               ),
@@ -2813,7 +2881,7 @@ class __DeviceControlSheetContentState
               ),
               Card(
                 elevation: 2,
-                margin: EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18)),
                 child: Padding(
@@ -2836,9 +2904,8 @@ class __DeviceControlSheetContentState
                             value: _scheduledWateringEnabled,
                             onChanged: (bool value) {
                               widget.databaseReference
-                                  .child(
-                                      'devices/${widget.deviceId}/scheduledWatering/enabled')
-                                  .set(value);
+                                  .child('devices/${widget.deviceId}/sw/en')
+                                  .set(value ? 1 : 0);
                             },
                             activeColor: Theme.of(context).primaryColor,
                             materialTapTargetSize:
@@ -2847,9 +2914,9 @@ class __DeviceControlSheetContentState
                         ],
                       ),
                       if (_scheduledWateringEnabled) ...[
-                        SizedBox(height: 8),
-                        _buildScheduledWateringList(context, schedulesMap),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
+                        _buildScheduledWateringList(context, schedulesList),
+                        const SizedBox(height: 8),
                         Align(
                           alignment: Alignment.centerRight,
                           child: ElevatedButton.icon(
@@ -2860,12 +2927,12 @@ class __DeviceControlSheetContentState
                                 foregroundColor:
                                     Theme.of(context).primaryColorDark,
                                 elevation: 0,
-                                padding: EdgeInsets.symmetric(
+                                padding: const EdgeInsets.symmetric(
                                     horizontal: 14, vertical: 6),
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8))),
-                            icon: Icon(Icons.add_alarm_rounded, size: 16),
-                            label: Text("Thêm Lịch",
+                            icon: const Icon(Icons.add_alarm_rounded, size: 16),
+                            label: const Text("Thêm Lịch",
                                 style: TextStyle(
                                     fontSize: 13.0,
                                     fontWeight: FontWeight.w500)),
