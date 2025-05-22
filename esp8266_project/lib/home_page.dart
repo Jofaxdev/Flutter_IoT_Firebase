@@ -1,3 +1,4 @@
+// [Existing imports]
 import 'dart:async';
 import 'package:google_fonts/google_fonts.dart'; // Thêm import này
 import 'package:shimmer/shimmer.dart';
@@ -9,6 +10,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
+// [Existing HomePage class and its methods remain largely the same]
+// ... HomePage methods like _showDeleteConfirmationDialog, _deleteDevice, _addDevice, _signOut, _showAddDeviceDialog, _scanQrCode, _showControlSheet, _showEditDialog, _buildColorOption, _getDevices, build...
 
 class HomePage extends StatelessWidget {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -951,6 +955,7 @@ class __DeviceControlSheetContentState
   TextEditingController? _moisturePumpDurationController;
   double _moistureSliderValue = 50.0;
   bool _moistureBasedEnabled = false;
+  bool _moistureFieldsInitialized = false;
 
   // For Scheduled watering
   bool _scheduledWateringEnabled = false;
@@ -997,50 +1002,54 @@ class __DeviceControlSheetContentState
                 Map<dynamic, dynamic>.from(event.snapshot.value as Map);
 
             if (widget.deviceId.startsWith('CamBienNhietDoAm')) {
-              // Moisture-based watering data from 'devices/DEVICE_ID/moistureBasedWatering/'
               final moistureData = _deviceData?['moistureBasedWatering']
                       as Map<dynamic, dynamic>? ??
                   {};
               _moistureBasedEnabled = moistureData['enabled'] as bool? ?? false;
 
-              dynamic rawMoistureThreshold =
-                  moistureData['soilMoistureThreshold'];
-              int currentMoistureThresholdInt = 50;
-              if (rawMoistureThreshold is int) {
-                currentMoistureThresholdInt = rawMoistureThreshold;
-              } else if (rawMoistureThreshold is double) {
-                currentMoistureThresholdInt = rawMoistureThreshold.round();
-              } else if (rawMoistureThreshold is String) {
-                currentMoistureThresholdInt =
-                    int.tryParse(rawMoistureThreshold) ?? 50;
-              }
-              _moistureSliderValue = currentMoistureThresholdInt.toDouble();
-              _moistureThresholdController ??= TextEditingController();
-              if (_moistureThresholdController!.text !=
-                  currentMoistureThresholdInt.toString()) {
-                _moistureThresholdController!.text =
-                    currentMoistureThresholdInt.toString();
+              if (!_moistureFieldsInitialized) {
+                _moistureThresholdController ??= TextEditingController();
+                _moisturePumpDurationController ??= TextEditingController();
+
+                dynamic rawMoistureThreshold =
+                    moistureData['soilMoistureThreshold'];
+                int currentMoistureThresholdInt = 50;
+                if (rawMoistureThreshold is int) {
+                  currentMoistureThresholdInt = rawMoistureThreshold;
+                } else if (rawMoistureThreshold is double) {
+                  currentMoistureThresholdInt = rawMoistureThreshold.round();
+                } else if (rawMoistureThreshold is String) {
+                  currentMoistureThresholdInt =
+                      int.tryParse(rawMoistureThreshold) ?? 50;
+                }
+                _moistureSliderValue = currentMoistureThresholdInt.toDouble();
+                if (_moistureThresholdController!.text !=
+                        currentMoistureThresholdInt.toString() ||
+                    !_moistureFieldsInitialized) {
+                  _moistureThresholdController!.text =
+                      currentMoistureThresholdInt.toString();
+                }
+
+                dynamic rawMoisturePumpDuration =
+                    moistureData['pumpDurationWhenDry'];
+                int currentMoisturePumpDuration = 30;
+                if (rawMoisturePumpDuration is int) {
+                  currentMoisturePumpDuration = rawMoisturePumpDuration;
+                } else if (rawMoisturePumpDuration is String) {
+                  currentMoisturePumpDuration =
+                      int.tryParse(rawMoisturePumpDuration) ?? 30;
+                } else if (rawMoisturePumpDuration is double) {
+                  currentMoisturePumpDuration = rawMoisturePumpDuration.toInt();
+                }
+                if (_moisturePumpDurationController!.text !=
+                        currentMoisturePumpDuration.toString() ||
+                    !_moistureFieldsInitialized) {
+                  _moisturePumpDurationController!.text =
+                      currentMoisturePumpDuration.toString();
+                }
+                _moistureFieldsInitialized = true;
               }
 
-              dynamic rawMoisturePumpDuration =
-                  moistureData['pumpDurationWhenDry'];
-              int currentMoisturePumpDuration = 30;
-              if (rawMoisturePumpDuration is int) {
-                currentMoisturePumpDuration = rawMoisturePumpDuration;
-              } else if (rawMoisturePumpDuration is String) {
-                currentMoisturePumpDuration =
-                    int.tryParse(rawMoisturePumpDuration) ?? 30;
-              } else if (rawMoisturePumpDuration is double) {
-                currentMoisturePumpDuration = rawMoisturePumpDuration.toInt();
-              }
-              _moisturePumpDurationController ??= TextEditingController();
-              if (_moisturePumpDurationController!.text !=
-                  currentMoisturePumpDuration.toString()) {
-                _moisturePumpDurationController!.text =
-                    currentMoisturePumpDuration.toString();
-              }
-
-              // Scheduled watering data from 'devices/DEVICE_ID/scheduledWatering/'
               final scheduledData =
                   _deviceData?['scheduledWatering'] as Map<dynamic, dynamic>? ??
                       {};
@@ -2187,6 +2196,12 @@ class __DeviceControlSheetContentState
       );
     } else {
       final deviceData = _deviceData!;
+      bool isAutoWateringActive = false;
+
+      if (widget.deviceId.startsWith('CamBienNhietDoAm')) {
+        isAutoWateringActive =
+            _moistureBasedEnabled || _scheduledWateringEnabled;
+      }
 
       if (widget.deviceId.startsWith('CongTac')) {
         content = SingleChildScrollView(
@@ -2396,7 +2411,6 @@ class __DeviceControlSheetContentState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildTitlePlaceholder(),
-              // Sensor Info Card
               Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 4.0, vertical: 6.0),
@@ -2464,7 +2478,6 @@ class __DeviceControlSheetContentState
                   ),
                 ),
               ),
-              // Manual Relay Controls
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: Text("Điều khiển Relay Thủ Công",
@@ -2494,96 +2507,113 @@ class __DeviceControlSheetContentState
                     }
                   }
 
-                  return Card(
-                    elevation: switchStatus ? 6 : 3,
-                    margin: EdgeInsets.zero,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24)),
-                    color: switchStatus
-                        ? Theme.of(context).primaryColor
-                        : Theme.of(context).cardColor,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(24),
-                      onTap: () {
-                        bool newValue = !switchStatus;
-                        widget.databaseReference
-                            .child('devices/${widget.deviceId}')
-                            .update({relayKey: newValue ? true : false});
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12.0, vertical: 16.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: switchStatus
-                                        ? Colors.white.withOpacity(0.2)
-                                        : Theme.of(context)
-                                            .primaryColor
-                                            .withOpacity(0.08),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(relayIcon,
-                                      size: 26,
+                  final bool isWaterPumpRelay = relayKey == 'water_pump';
+                  final bool buttonDisabled =
+                      isWaterPumpRelay && isAutoWateringActive;
+
+                  return Opacity(
+                    opacity: buttonDisabled ? 0.7 : 1.0,
+                    child: Card(
+                      elevation: switchStatus ? 6 : 3,
+                      margin: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24)),
+                      color: switchStatus
+                          ? Theme.of(context).primaryColor
+                          : Theme.of(context).cardColor,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(24),
+                        onTap: buttonDisabled
+                            ? null
+                            : () {
+                                bool newValue = !switchStatus;
+                                widget.databaseReference
+                                    .child('devices/${widget.deviceId}')
+                                    .update({relayKey: newValue});
+                              },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12.0, vertical: 16.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
                                       color: switchStatus
-                                          ? Colors.white
-                                          : Theme.of(context).primaryColorDark),
-                                ),
-                                Switch(
-                                  value: switchStatus,
-                                  onChanged: (value) {
-                                    widget.databaseReference
-                                        .child('devices/${widget.deviceId}')
-                                        .update(
-                                            {relayKey: value ? true : false});
-                                  },
-                                  activeColor: Colors.white,
-                                  activeTrackColor:
-                                      Colors.white.withOpacity(0.4),
-                                  inactiveThumbColor: Colors.grey.shade400,
-                                  inactiveTrackColor: Colors.grey.shade200,
-                                  materialTapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 8),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(relayName,
-                                    textAlign: TextAlign.left,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
+                                          ? Colors.white.withOpacity(0.2)
+                                          : Theme.of(context)
+                                              .primaryColor
+                                              .withOpacity(0.08),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(relayIcon,
+                                        size: 26,
                                         color: switchStatus
                                             ? Colors.white
                                             : Theme.of(context)
-                                                .textTheme
-                                                .titleMedium
-                                                ?.color)),
-                                SizedBox(height: 3),
-                                Text(switchStatus ? "ĐANG BẬT" : "ĐANG TẮT",
-                                    style: TextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: 0.6,
-                                        color: switchStatus
-                                            ? Colors.white.withOpacity(0.9)
-                                            : Colors.grey.shade500)),
-                              ],
-                            ),
-                          ],
+                                                .primaryColorDark),
+                                  ),
+                                  // MODIFIED: Switch is now always rendered
+                                  Switch(
+                                    value: switchStatus,
+                                    // MODIFIED: buttonDisabled also disables the switch's onChanged
+                                    onChanged: buttonDisabled
+                                        ? null
+                                        : (value) {
+                                            widget.databaseReference
+                                                .child(
+                                                    'devices/${widget.deviceId}')
+                                                .update({
+                                              relayKey: value
+                                            }); // value from Switch is boolean
+                                          },
+                                    activeColor: Colors.white,
+                                    activeTrackColor:
+                                        Colors.white.withOpacity(0.4),
+                                    inactiveThumbColor: Colors.grey.shade400,
+                                    inactiveTrackColor: Colors.grey.shade200,
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 8),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(relayName,
+                                      textAlign: TextAlign.left,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                          color: switchStatus
+                                              ? Colors.white
+                                              : Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium
+                                                  ?.color)),
+                                  SizedBox(height: 3),
+                                  Text(switchStatus ? "ĐANG BẬT" : "ĐANG TẮT",
+                                      style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 0.6,
+                                          color: switchStatus
+                                              ? Colors.white.withOpacity(0.9)
+                                              : Colors.grey.shade500)),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -2591,7 +2621,6 @@ class __DeviceControlSheetContentState
                 }).toList(),
               ),
               const SizedBox(height: 15),
-              // Manual Relay Controls
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: Text("Tưới Tự Động",
@@ -2600,7 +2629,6 @@ class __DeviceControlSheetContentState
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).primaryColor)),
               ),
-              // --- Section: Tưới Theo Độ Ẩm ---
               Card(
                 elevation: 2,
                 margin: EdgeInsets.symmetric(vertical: 10, horizontal: 4),
@@ -2656,11 +2684,13 @@ class __DeviceControlSheetContentState
                           inactiveColor:
                               Theme.of(context).primaryColor.withOpacity(0.3),
                           onChanged: (double value) {
-                            setState(() {
-                              _moistureSliderValue = value;
-                              _moistureThresholdController?.text =
-                                  value.round().toString();
-                            });
+                            if (mounted) {
+                              setState(() {
+                                _moistureSliderValue = value;
+                                _moistureThresholdController?.text =
+                                    value.round().toString();
+                              });
+                            }
                           },
                           onChangeEnd: (double value) {
                             int finalThreshold = value.round();
@@ -2686,19 +2716,6 @@ class __DeviceControlSheetContentState
                                 keyboardType: TextInputType.number,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(fontSize: 13),
-                                onChanged: (String value) {
-                                  double? typedValue = double.tryParse(value);
-                                  if (typedValue != null &&
-                                      typedValue >= 0 &&
-                                      typedValue <= 100) {
-                                    if (_moistureSliderValue.round() !=
-                                        typedValue.round()) {
-                                      setState(() {
-                                        _moistureSliderValue = typedValue;
-                                      });
-                                    }
-                                  }
-                                },
                                 onFieldSubmitted: (String value) {
                                   int? threshold = int.tryParse(value);
                                   if (threshold != null &&
@@ -2709,7 +2726,8 @@ class __DeviceControlSheetContentState
                                             'devices/${widget.deviceId}/moistureBasedWatering/soilMoistureThreshold')
                                         .set(threshold);
                                     if (_moistureSliderValue.round() !=
-                                        threshold) {
+                                            threshold &&
+                                        mounted) {
                                       setState(() {
                                         _moistureSliderValue =
                                             threshold.toDouble();
@@ -2793,7 +2811,6 @@ class __DeviceControlSheetContentState
                   ),
                 ),
               ),
-              // --- Sub-Section: Tưới Theo Lịch Trình ---
               Card(
                 elevation: 2,
                 margin: EdgeInsets.symmetric(vertical: 10, horizontal: 4),
@@ -2863,7 +2880,6 @@ class __DeviceControlSheetContentState
                   ),
                 ),
               ),
-              // ], // This was the end of the now-removed 'if (_autoWateringOverallEnabled)'
             ],
           ),
         );
